@@ -1,0 +1,63 @@
+<!doctype html>
+<!--
+  DISCOVERY SCREEN — Foodbridge Module Customer — "Retail Customers"
+  ------------------------------------------------------------------
+  RECREATION of https://b2bgreens.com/platform/retail-customers (tenant
+  "QA store", user "Mahesh · Admin").
+
+  The live Retail page renders the SAME components/customer/CustomerTable.jsx as
+  the B2B page, passing `privateCustomer` and `showStock={false}` — so this
+  screen is the same renderer with a different configuration, not a second
+  implementation. Provenance:
+
+    region                    app source
+    ------------------------  ----------------------------------------------
+    page shell / sidebar      src/layout/Layout.jsx · components/sidebar/*
+    header + description      src/pages/RetailCustomers.jsx:186-228
+    bulk (Delete + Campaign)  src/components/common/BulkActionDropdown.jsx
+                              RetailCustomers.jsx handleBulkSendCampaignLinks
+    search                    src/pages/RetailCustomers.jsx:231-252
+    table + row actions       src/components/customer/CustomerTable.jsx
+                              (privateCustomer → Send Campaign Link, no Stock)
+    add / edit drawer         src/components/drawer/RetailCustomerDrawer.jsx
+    campaign link modal       src/components/modal/RetailCampaignLinkModal.jsx
+    bulk smart link modal     src/components/modal/GenerateSmartLinkModal.jsx
+                              (eventType CONSUMER_STORE_ACCESS)
+    delete confirmation       src/components/modal/DeleteModal.jsx
+    empty state               src/components/table/NotFound.jsx
+
+  What this screen deliberately does NOT have, because the live one doesn't:
+  GST fields, Import/Export/Sample, tag chips, Stock and Offers.
+
+  Standalone-openable. Data from seed.inline.js (mirror of
+  ../../seed-data/seed.json).
+
+  Outgoing transitions (→ proto-FSM for SSOT-1 / SSOT-5):
+    - search / page               → same screen, re-filtered list
+    - "+ Add Customer" / pencil   → Add/Edit drawer over the list
+    - trash / Bulk Action→Delete  → Delete confirm modal → list
+    - paper-plane                 → Campaign link modal
+    - Bulk Action → Send Campaign → Generate Smart Link modal
+    - sidebar "B2B Customers"     → b2b-customers.html (the only navigation)
+
+  Rules: HTML/CSS/vanilla JS only. No frameworks, no build step, no real API
+  calls. Disposable — informs the SSOTs, not imported by development/.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Retail Customers — Foodbridge Module Customer</title>
+  <!-- No webfont: tailwind.config.js sets fontFamily.sans to system-ui, so the
+       deployed app never renders the Inter it preloads. styles.css matches. -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app" id="app"></div>
+  <script src="icons.js"></script>
+  <script src="seed.inline.js"></script>
+  <script src="shell.js"></script>
+  <script src="customers.js"></script>
+  <script>FB.mount("retail");</script>
+</body>
+</html>

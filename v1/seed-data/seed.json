@@ -1,0 +1,1242 @@
+{
+  "_comment": "Fake-but-representative discovery seed for the Customer module. Never imported by development/. Shapes mirror the live API responses consumed by src/pages/Customers.jsx and RetailCustomers.jsx, keeping the API spelling quirks (adress1, adress2, postnr). Row data is recreated from the live b2bgreens.com/platform/customers capture (see discovery/instructions/inputs/). The prototype runs from file:// and cannot fetch JSON, so screens/customers/seed.inline.js mirrors this file verbatim — edit both together.",
+  "tenant": {
+    "name": "QA store",
+    "user": {
+      "name": "Mahesh",
+      "role": "Admin"
+    }
+  },
+  "location": "loc_qa_store_01",
+  "customersLabel": "B2B Customers",
+  "orgGstNumber": "27AAACQ1234A1Z9",
+  "pageSize": 20,
+  "_appPropNote": "Tenant feature flags, read from localStorage.appProp in the live app. They gate whole regions of the B2B screen — including whether row checkboxes exist at all. The As-is capture came from a tenant with bulkImportEnabled:false; these are all on so every flow is reachable.",
+  "appProp": {
+    "isTagFeatureEnabled": true,
+    "customerManagementFeatures": {
+      "bulkImportEnabled": true,
+      "deleteEnabled": true,
+      "stockEnabled": true,
+      "offerEnabled": true,
+      "sampleEnabled": true,
+      "catalogMappingEnabled": false,
+      "creditWalletMappingEnabled": false
+    },
+    "notification": {
+      "isEnabled": true
+    }
+  },
+  "catalogues": [
+    {
+      "_id": "cat_00",
+      "customerTypeReference": "ctype_default",
+      "catalogue": {
+        "name": "Default"
+      }
+    },
+    {
+      "_id": "cat_01",
+      "customerTypeReference": "ctype_catalogue_1",
+      "catalogue": {
+        "name": "Catalogue 1"
+      }
+    },
+    {
+      "_id": "cat_02",
+      "customerTypeReference": "ctype_catalogue_2",
+      "catalogue": {
+        "name": "Catalogue 2"
+      }
+    }
+  ],
+  "states": [
+    {
+      "code": "MH",
+      "name": "Maharashtra"
+    },
+    {
+      "code": "GJ",
+      "name": "Gujarat"
+    },
+    {
+      "code": "KA",
+      "name": "Karnataka"
+    },
+    {
+      "code": "DL",
+      "name": "Delhi"
+    },
+    {
+      "code": "RJ",
+      "name": "Rajasthan"
+    },
+    {
+      "code": "TN",
+      "name": "Tamil Nadu"
+    },
+    {
+      "code": "UP",
+      "name": "Uttar Pradesh"
+    },
+    {
+      "code": "MP",
+      "name": "Madhya Pradesh"
+    }
+  ],
+  "_b2bNote": "The first ten rows reproduce the As-is capture verbatim — including the empty address fields, which is why the ADDRESS column renders as dashes. Rows 11+ add the variety the capture does not cover: filled addresses, GST-registered vs exempt, customer codes, and a second page of results.",
+  "b2b": {
+    "totalOrgsCount": 22,
+    "orgs": [
+      {
+        "_id": "c01",
+        "orgNo": "",
+        "name": {
+          "en": "Raman"
+        },
+        "email": "raman@gmail.com",
+        "phone": "985673456",
+        "adress1": "",
+        "state": {},
+        "postnr": "",
+        "adress2": "",
+        "shippingState": {},
+        "shippingPostnumber": "",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_default"
+          }
+        ],
+        "tags": [
+          "normal"
+        ],
+        "createdAt": "2026-01-14"
+      },
+      {
+        "_id": "c02",
+        "orgNo": "",
+        "name": {
+          "en": "A New Customer"
+        },
+        "email": "",
+        "phone": "9384594893",
+        "adress1": "",
+        "state": {},
+        "postnr": "",
+        "adress2": "",
+        "shippingState": {},
+        "shippingPostnumber": "",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_default"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-01-22"
+      },
+      {
+        "_id": "c03",
+        "orgNo": "",
+        "name": {
+          "en": "Aai Mata General Store"
+        },
+        "email": "",
+        "phone": "82736450195",
+        "adress1": "",
+        "state": {},
+        "postnr": "",
+        "adress2": "",
+        "shippingState": {},
+        "shippingPostnumber": "",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_default"
+          }
+        ],
+        "tags": [
+          "regular"
+        ],
+        "createdAt": "2026-02-02"
+      },
+      {
+        "_id": "c04",
+        "orgNo": "",
+        "name": {
+          "en": "Ganraj Kirana Mart"
+        },
+        "email": "",
+        "phone": "41589627074",
+        "adress1": "",
+        "state": {},
+        "postnr": "",
+        "adress2": "",
+        "shippingState": {},
+        "shippingPostnumber": "",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_catalogue_2"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-02-11"
+      },
+      {
+        "_id": "c05",
+        "orgNo": "",
+        "name": {
+          "en": "Shree Ram Super Market"
+        },
+        "email": "",
+        "phone": "56820973184",
+        "adress1": "",
+        "state": {},
+        "postnr": "",
+        "adress2": "",
+        "shippingState": {},
+        "shippingPostnumber": "",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_catalogue_2"
+          }
+        ],
+        "tags": [
+          "regular"
+        ],
+        "createdAt": "2026-02-19"
+      },
+      {
+        "_id": "c06",
+        "orgNo": "",
+        "name": {
+          "en": "New Bharat General Store"
+        },
+        "email": "",
+        "phone": "64082719536",
+        "adress1": "",
+        "state": {},
+        "postnr": "",
+        "adress2": "",
+        "shippingState": {},
+        "shippingPostnumber": "",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_catalogue_2"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-03-04"
+      },
+      {
+        "_id": "c07",
+        "orgNo": "",
+        "name": {
+          "en": "Laxmi Provision Store"
+        },
+        "email": "",
+        "phone": "97315042861",
+        "adress1": "",
+        "state": {},
+        "postnr": "",
+        "adress2": "",
+        "shippingState": {},
+        "shippingPostnumber": "",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_default"
+          }
+        ],
+        "tags": [
+          "normal"
+        ],
+        "createdAt": "2026-03-12"
+      },
+      {
+        "_id": "c08",
+        "orgNo": "",
+        "name": {
+          "en": "Raj Traders"
+        },
+        "email": "",
+        "phone": "53197286440",
+        "adress1": "",
+        "state": {},
+        "postnr": "",
+        "adress2": "",
+        "shippingState": {},
+        "shippingPostnumber": "",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_catalogue_1"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-03-25"
+      },
+      {
+        "_id": "c09",
+        "orgNo": "",
+        "name": {
+          "en": "Shivam Grocery Store"
+        },
+        "email": "",
+        "phone": "28946175318",
+        "adress1": "",
+        "state": {},
+        "postnr": "",
+        "adress2": "",
+        "shippingState": {},
+        "shippingPostnumber": "",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_default"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-04-02"
+      },
+      {
+        "_id": "c10",
+        "orgNo": "",
+        "name": {
+          "en": "Shree Datta Super Store"
+        },
+        "email": "",
+        "phone": "70631984512",
+        "adress1": "",
+        "state": {},
+        "postnr": "",
+        "adress2": "",
+        "shippingState": {},
+        "shippingPostnumber": "",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_default"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-04-15"
+      },
+      {
+        "_id": "c11",
+        "orgNo": "CUST-0011",
+        "name": {
+          "en": "Sai Enterprises"
+        },
+        "email": "accounts@saient.in",
+        "phone": "9822014455",
+        "adress1": "Shop 14, Market Yard",
+        "state": {
+          "code": "MH",
+          "name": "Maharashtra"
+        },
+        "postnr": "411037",
+        "adress2": "Shop 14, Market Yard",
+        "shippingState": {
+          "code": "MH",
+          "name": "Maharashtra"
+        },
+        "shippingPostnumber": "411037",
+        "gstType": "regular",
+        "gstNumber": "27AAECS1234F1Z5",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_catalogue_1"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-04-28"
+      },
+      {
+        "_id": "c12",
+        "orgNo": "CUST-0012",
+        "name": {
+          "en": "Annapurna Wholesale"
+        },
+        "email": "orders@annapurna.co.in",
+        "phone": "9930778812",
+        "adress1": "Plot 22, MIDC Phase II",
+        "state": {
+          "code": "MH",
+          "name": "Maharashtra"
+        },
+        "postnr": "400705",
+        "adress2": "Warehouse 4, Kalamboli Godown Cluster",
+        "shippingState": {
+          "code": "MH",
+          "name": "Maharashtra"
+        },
+        "shippingPostnumber": "410218",
+        "gstType": "regular",
+        "gstNumber": "27AABCA9876K1ZP",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_catalogue_2"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-05-06"
+      },
+      {
+        "_id": "c13",
+        "orgNo": "CUST-0013",
+        "name": {
+          "en": "Gokul Dairy & General"
+        },
+        "email": "gokul.dairy@gmail.com",
+        "phone": "9426100077",
+        "adress1": "Near Bus Stand, Anand",
+        "state": {
+          "code": "GJ",
+          "name": "Gujarat"
+        },
+        "postnr": "388001",
+        "adress2": "Near Bus Stand, Anand",
+        "shippingState": {
+          "code": "GJ",
+          "name": "Gujarat"
+        },
+        "shippingPostnumber": "388001",
+        "gstType": "exempt",
+        "gstNumber": "UDIN-2026-004518",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_default"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-05-19"
+      },
+      {
+        "_id": "c14",
+        "orgNo": "CUST-0014",
+        "name": {
+          "en": "Balaji Super Bazaar"
+        },
+        "email": "balaji.bazaar@outlook.com",
+        "phone": "9845220311",
+        "adress1": "3rd Cross, Jayanagar 4th Block",
+        "state": {
+          "code": "KA",
+          "name": "Karnataka"
+        },
+        "postnr": "560011",
+        "adress2": "3rd Cross, Jayanagar 4th Block",
+        "shippingState": {
+          "code": "KA",
+          "name": "Karnataka"
+        },
+        "shippingPostnumber": "560011",
+        "gstType": "regular",
+        "gstNumber": "29AACCB4321M1Z8",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_catalogue_1"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-06-01"
+      },
+      {
+        "_id": "c15",
+        "orgNo": "CUST-0015",
+        "name": {
+          "en": "Hind Provision Stores"
+        },
+        "email": "",
+        "phone": "9312044566",
+        "adress1": "Khari Baoli, Chandni Chowk",
+        "state": {
+          "code": "DL",
+          "name": "Delhi"
+        },
+        "postnr": "110006",
+        "adress2": "Khari Baoli, Chandni Chowk",
+        "shippingState": {
+          "code": "DL",
+          "name": "Delhi"
+        },
+        "shippingPostnumber": "110006",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_default"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-06-10"
+      },
+      {
+        "_id": "c16",
+        "orgNo": "CUST-0016",
+        "name": {
+          "en": "Marwar Trading Co."
+        },
+        "email": "marwar.trading@gmail.com",
+        "phone": "9414088990",
+        "adress1": "Johari Bazaar Road",
+        "state": {
+          "code": "RJ",
+          "name": "Rajasthan"
+        },
+        "postnr": "302003",
+        "adress2": "Johari Bazaar Road",
+        "shippingState": {
+          "code": "RJ",
+          "name": "Rajasthan"
+        },
+        "shippingPostnumber": "302003",
+        "gstType": "regular",
+        "gstNumber": "08AAFCM5566Q1ZR",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_catalogue_2"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-06-24"
+      },
+      {
+        "_id": "c17",
+        "orgNo": "CUST-0017",
+        "name": {
+          "en": "Kaveri Stores"
+        },
+        "email": "kaveristores@yahoo.in",
+        "phone": "9840566123",
+        "adress1": "12 Anna Salai",
+        "state": {
+          "code": "TN",
+          "name": "Tamil Nadu"
+        },
+        "postnr": "600002",
+        "adress2": "12 Anna Salai",
+        "shippingState": {
+          "code": "TN",
+          "name": "Tamil Nadu"
+        },
+        "shippingPostnumber": "600002",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_default"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-07-03"
+      },
+      {
+        "_id": "c18",
+        "orgNo": "CUST-0018",
+        "name": {
+          "en": "Ganga Kirana Bhandar"
+        },
+        "email": "",
+        "phone": "9335001278",
+        "adress1": "Aminabad Main Road",
+        "state": {
+          "code": "UP",
+          "name": "Uttar Pradesh"
+        },
+        "postnr": "226018",
+        "adress2": "Aminabad Main Road",
+        "shippingState": {
+          "code": "UP",
+          "name": "Uttar Pradesh"
+        },
+        "shippingPostnumber": "226018",
+        "gstType": "exempt",
+        "gstNumber": "UDIN-2026-009902",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_default"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-07-16"
+      },
+      {
+        "_id": "c19",
+        "orgNo": "CUST-0019",
+        "name": {
+          "en": "Narmada Distributors"
+        },
+        "email": "sales@narmadadist.in",
+        "phone": "9827311456",
+        "adress1": "Zone-II, Maharana Pratap Nagar",
+        "state": {
+          "code": "MP",
+          "name": "Madhya Pradesh"
+        },
+        "postnr": "462011",
+        "adress2": "Zone-II, Maharana Pratap Nagar",
+        "shippingState": {
+          "code": "MP",
+          "name": "Madhya Pradesh"
+        },
+        "shippingPostnumber": "462011",
+        "gstType": "regular",
+        "gstNumber": "23AAGCN7788L1ZW",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_catalogue_1"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-07-28"
+      },
+      {
+        "_id": "c20",
+        "orgNo": "CUST-0020",
+        "name": {
+          "en": "Konkan Fresh Mart"
+        },
+        "email": "konkanfresh@gmail.com",
+        "phone": "9022778899",
+        "adress1": "Station Road, Ratnagiri",
+        "state": {
+          "code": "MH",
+          "name": "Maharashtra"
+        },
+        "postnr": "415612",
+        "adress2": "Station Road, Ratnagiri",
+        "shippingState": {
+          "code": "MH",
+          "name": "Maharashtra"
+        },
+        "shippingPostnumber": "415612",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_catalogue_2"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-08-04"
+      },
+      {
+        "_id": "c21",
+        "orgNo": "CUST-0021",
+        "name": {
+          "en": "Vishal Wholesale Depot"
+        },
+        "email": "vishal.depot@gmail.com",
+        "phone": "9998112233",
+        "adress1": "Ring Road, Surat",
+        "state": {
+          "code": "GJ",
+          "name": "Gujarat"
+        },
+        "postnr": "395002",
+        "adress2": "Ring Road, Surat",
+        "shippingState": {
+          "code": "GJ",
+          "name": "Gujarat"
+        },
+        "shippingPostnumber": "395002",
+        "gstType": "regular",
+        "gstNumber": "24AADCV2211H1ZK",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_catalogue_2"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-08-07"
+      },
+      {
+        "_id": "c22",
+        "orgNo": "CUST-0022",
+        "name": {
+          "en": "Sharda Retail Chain"
+        },
+        "email": "",
+        "phone": "9765004411",
+        "adress1": "FC Road",
+        "state": {
+          "code": "MH",
+          "name": "Maharashtra"
+        },
+        "postnr": "411005",
+        "adress2": "FC Road",
+        "shippingState": {
+          "code": "MH",
+          "name": "Maharashtra"
+        },
+        "shippingPostnumber": "411005",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PUBLIC",
+        "locationCustomerTypeMap": [
+          {
+            "locationRef": "loc_qa_store_01",
+            "customerTypeRef": "ctype_default"
+          }
+        ],
+        "tags": [],
+        "createdAt": "2026-08-09"
+      }
+    ]
+  },
+  "_retailNote": "Retail customers are supplyChainType PRIVATE with no GST fields and no catalogue mapping — the Catalog column renders a dash for all of them.",
+  "retail": {
+    "totalOrgsCount": 12,
+    "orgs": [
+      {
+        "_id": "r01",
+        "orgNo": "",
+        "name": {
+          "en": "Priya Deshmukh"
+        },
+        "email": "priya.d@gmail.com",
+        "phone": "9822711045",
+        "adress1": "Flat 302, Sunrise Residency, Baner",
+        "state": {
+          "code": "MH",
+          "name": "Maharashtra"
+        },
+        "postnr": "411045",
+        "adress2": "Flat 302, Sunrise Residency, Baner",
+        "shippingState": {
+          "code": "MH",
+          "name": "Maharashtra"
+        },
+        "shippingPostnumber": "411045",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PRIVATE",
+        "locationCustomerTypeMap": [],
+        "tags": [],
+        "createdAt": "2026-03-08"
+      },
+      {
+        "_id": "r02",
+        "orgNo": "",
+        "name": {
+          "en": "Anil Kumar"
+        },
+        "email": "",
+        "phone": "9812004477",
+        "adress1": "House 21, Sector 15",
+        "state": {
+          "code": "DL",
+          "name": "Delhi"
+        },
+        "postnr": "110085",
+        "adress2": "House 21, Sector 15",
+        "shippingState": {
+          "code": "DL",
+          "name": "Delhi"
+        },
+        "shippingPostnumber": "110085",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PRIVATE",
+        "locationCustomerTypeMap": [],
+        "tags": [],
+        "createdAt": "2026-03-21"
+      },
+      {
+        "_id": "r03",
+        "orgNo": "",
+        "name": {
+          "en": "Meera Iyer"
+        },
+        "email": "meera.iyer@outlook.com",
+        "phone": "9840112233",
+        "adress1": "4/7 Besant Nagar",
+        "state": {
+          "code": "TN",
+          "name": "Tamil Nadu"
+        },
+        "postnr": "600090",
+        "adress2": "4/7 Besant Nagar",
+        "shippingState": {
+          "code": "TN",
+          "name": "Tamil Nadu"
+        },
+        "shippingPostnumber": "600090",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PRIVATE",
+        "locationCustomerTypeMap": [],
+        "tags": [],
+        "createdAt": "2026-04-05"
+      },
+      {
+        "_id": "r04",
+        "orgNo": "",
+        "name": {
+          "en": "Rakesh Jain"
+        },
+        "email": "",
+        "phone": "9414556677",
+        "adress1": "",
+        "state": {},
+        "postnr": "",
+        "adress2": "",
+        "shippingState": {},
+        "shippingPostnumber": "",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PRIVATE",
+        "locationCustomerTypeMap": [],
+        "tags": [],
+        "createdAt": "2026-04-18"
+      },
+      {
+        "_id": "r05",
+        "orgNo": "",
+        "name": {
+          "en": "Sunita Patil"
+        },
+        "email": "sunita.patil91@gmail.com",
+        "phone": "9004556621",
+        "adress1": "B-12, Shanti Nagar, Andheri East",
+        "state": {
+          "code": "MH",
+          "name": "Maharashtra"
+        },
+        "postnr": "400069",
+        "adress2": "B-12, Shanti Nagar, Andheri East",
+        "shippingState": {
+          "code": "MH",
+          "name": "Maharashtra"
+        },
+        "shippingPostnumber": "400069",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PRIVATE",
+        "locationCustomerTypeMap": [],
+        "tags": [],
+        "createdAt": "2026-05-02"
+      },
+      {
+        "_id": "r06",
+        "orgNo": "",
+        "name": {
+          "en": "Imran Shaikh"
+        },
+        "email": "",
+        "phone": "9739004512",
+        "adress1": "18, Cox Town",
+        "state": {
+          "code": "KA",
+          "name": "Karnataka"
+        },
+        "postnr": "560005",
+        "adress2": "18, Cox Town",
+        "shippingState": {
+          "code": "KA",
+          "name": "Karnataka"
+        },
+        "shippingPostnumber": "560005",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PRIVATE",
+        "locationCustomerTypeMap": [],
+        "tags": [],
+        "createdAt": "2026-05-17"
+      },
+      {
+        "_id": "r07",
+        "orgNo": "",
+        "name": {
+          "en": "Kavita Sharma"
+        },
+        "email": "kavita.sharma@gmail.com",
+        "phone": "9827004488",
+        "adress1": "Arera Colony, E-3",
+        "state": {
+          "code": "MP",
+          "name": "Madhya Pradesh"
+        },
+        "postnr": "462016",
+        "adress2": "Arera Colony, E-3",
+        "shippingState": {
+          "code": "MP",
+          "name": "Madhya Pradesh"
+        },
+        "shippingPostnumber": "462016",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PRIVATE",
+        "locationCustomerTypeMap": [],
+        "tags": [],
+        "createdAt": "2026-06-03"
+      },
+      {
+        "_id": "r08",
+        "orgNo": "",
+        "name": {
+          "en": "Devendra Rathod"
+        },
+        "email": "",
+        "phone": "9925117744",
+        "adress1": "Navrangpura",
+        "state": {
+          "code": "GJ",
+          "name": "Gujarat"
+        },
+        "postnr": "380009",
+        "adress2": "Navrangpura",
+        "shippingState": {
+          "code": "GJ",
+          "name": "Gujarat"
+        },
+        "shippingPostnumber": "380009",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PRIVATE",
+        "locationCustomerTypeMap": [],
+        "tags": [],
+        "createdAt": "2026-06-20"
+      },
+      {
+        "_id": "r09",
+        "orgNo": "",
+        "name": {
+          "en": "Farida Ansari"
+        },
+        "email": "farida.ansari@yahoo.com",
+        "phone": "9335447788",
+        "adress1": "Gomti Nagar, Vibhuti Khand",
+        "state": {
+          "code": "UP",
+          "name": "Uttar Pradesh"
+        },
+        "postnr": "226010",
+        "adress2": "Gomti Nagar, Vibhuti Khand",
+        "shippingState": {
+          "code": "UP",
+          "name": "Uttar Pradesh"
+        },
+        "shippingPostnumber": "226010",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PRIVATE",
+        "locationCustomerTypeMap": [],
+        "tags": [],
+        "createdAt": "2026-07-09"
+      },
+      {
+        "_id": "r10",
+        "orgNo": "",
+        "name": {
+          "en": "Suresh Nair"
+        },
+        "email": "",
+        "phone": "9820331155",
+        "adress1": "Ganesh Peth",
+        "state": {
+          "code": "MH",
+          "name": "Maharashtra"
+        },
+        "postnr": "411002",
+        "adress2": "Ganesh Peth",
+        "shippingState": {
+          "code": "MH",
+          "name": "Maharashtra"
+        },
+        "shippingPostnumber": "411002",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PRIVATE",
+        "locationCustomerTypeMap": [],
+        "tags": [],
+        "createdAt": "2026-07-25"
+      },
+      {
+        "_id": "r11",
+        "orgNo": "",
+        "name": {
+          "en": "Neha Agarwal"
+        },
+        "email": "neha.ag@gmail.com",
+        "phone": "9414990022",
+        "adress1": "Vaishali Nagar",
+        "state": {
+          "code": "RJ",
+          "name": "Rajasthan"
+        },
+        "postnr": "302021",
+        "adress2": "Vaishali Nagar",
+        "shippingState": {
+          "code": "RJ",
+          "name": "Rajasthan"
+        },
+        "shippingPostnumber": "302021",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PRIVATE",
+        "locationCustomerTypeMap": [],
+        "tags": [],
+        "createdAt": "2026-08-02"
+      },
+      {
+        "_id": "r12",
+        "orgNo": "",
+        "name": {
+          "en": "Ravi Verma"
+        },
+        "email": "",
+        "phone": "9312778866",
+        "adress1": "",
+        "state": {},
+        "postnr": "",
+        "adress2": "",
+        "shippingState": {},
+        "shippingPostnumber": "",
+        "gstType": "",
+        "gstNumber": "",
+        "supplyChainType": "PRIVATE",
+        "locationCustomerTypeMap": [],
+        "tags": [],
+        "createdAt": "2026-08-08"
+      }
+    ]
+  },
+  "stockCounts": {
+    "c01": [
+      {
+        "product": "Amul Taaza 500ml",
+        "unit": "Crate",
+        "counted": 12,
+        "countedAt": "2026-08-09"
+      },
+      {
+        "product": "Britannia Bread 400g",
+        "unit": "Packet",
+        "counted": 30,
+        "countedAt": "2026-08-09"
+      }
+    ],
+    "c05": [
+      {
+        "product": "Tata Salt 1kg",
+        "unit": "Box",
+        "counted": 8,
+        "countedAt": "2026-08-06"
+      }
+    ],
+    "c11": [
+      {
+        "product": "Parle-G 800g",
+        "unit": "Box",
+        "counted": 15,
+        "countedAt": "2026-08-07"
+      },
+      {
+        "product": "Bisleri 1L",
+        "unit": "Crate",
+        "counted": 40,
+        "countedAt": "2026-08-07"
+      }
+    ]
+  },
+  "offers": {
+    "c01": [
+      {
+        "title": "Buy 10 Get 1 Free",
+        "benefit": "Free Item"
+      }
+    ],
+    "c04": [
+      {
+        "title": "5% off on Catalogue 2 staples",
+        "benefit": "Percentage Discount"
+      }
+    ],
+    "c05": [
+      {
+        "title": "Buy 10 crates, get 1 free",
+        "benefit": "Free Item"
+      },
+      {
+        "title": "Flat ₹500 off above ₹10,000",
+        "benefit": "Flat Discount"
+      }
+    ],
+    "c11": [
+      {
+        "title": "Monsoon combo pack",
+        "benefit": "Bundle Price"
+      }
+    ]
+  },
+  "_productsNote": "Catalogue products backing the Stock Count view (system stock per product, so the counted-vs-system difference is real).",
+  "products": [
+    {
+      "id": "p01",
+      "name": "250ML PET",
+      "artNo": "34567",
+      "category": "SQUARE BOTTLE",
+      "unit": "Bottle",
+      "systemStock": 2,
+      "emoji": "🧴"
+    },
+    {
+      "id": "p02",
+      "name": "500ML PET",
+      "artNo": "89744",
+      "category": "SQUARE BOTTLE",
+      "unit": "Bottle",
+      "systemStock": 1,
+      "emoji": "🧴"
+    },
+    {
+      "id": "p03",
+      "name": "1LTR BOTTLE",
+      "artNo": "42534",
+      "category": "SQUARE BOTTLE",
+      "unit": "Bottle",
+      "systemStock": 1,
+      "emoji": "🍶"
+    },
+    {
+      "id": "p04",
+      "name": "NATURAL WATER",
+      "artNo": "4534",
+      "category": "ROUND BOTTLE",
+      "unit": "Bottle",
+      "systemStock": 0,
+      "emoji": "💧"
+    },
+    {
+      "id": "p05",
+      "name": "SODA 650ML",
+      "artNo": "435345",
+      "category": "ROUND BOTTLE",
+      "unit": "Bottle",
+      "systemStock": 0,
+      "emoji": "🥤"
+    },
+    {
+      "id": "p06",
+      "name": "Mini Bread 100gm",
+      "artNo": "a102",
+      "category": "BREAD",
+      "unit": "Pc",
+      "systemStock": 2,
+      "emoji": "🥖"
+    },
+    {
+      "id": "p07",
+      "name": "Milk Bread 200gm",
+      "artNo": "a103",
+      "category": "BREAD",
+      "unit": "Pc",
+      "systemStock": 1,
+      "emoji": "🍞"
+    },
+    {
+      "id": "p08",
+      "name": "Milk Bread 350gm",
+      "artNo": "a104",
+      "category": "BREAD",
+      "unit": "Pc",
+      "systemStock": 3,
+      "emoji": "🍞"
+    },
+    {
+      "id": "p09",
+      "name": "Amul Taaza 500ml",
+      "artNo": "d201",
+      "category": "DAIRY",
+      "unit": "Crate",
+      "systemStock": 12,
+      "emoji": "🥛"
+    },
+    {
+      "id": "p10",
+      "name": "Britannia Bread 400g",
+      "artNo": "a105",
+      "category": "BREAD",
+      "unit": "Packet",
+      "systemStock": 30,
+      "emoji": "🍞"
+    },
+    {
+      "id": "p11",
+      "name": "Tata Salt 1kg",
+      "artNo": "g301",
+      "category": "GROCERY",
+      "unit": "Box",
+      "systemStock": 8,
+      "emoji": "🧂"
+    },
+    {
+      "id": "p12",
+      "name": "Parle-G 800g",
+      "artNo": "b401",
+      "category": "BISCUITS",
+      "unit": "Box",
+      "systemStock": 15,
+      "emoji": "🍪"
+    }
+  ]
+}

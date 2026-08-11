@@ -1,0 +1,62 @@
+<!doctype html>
+<!--
+  DISCOVERY SCREEN — Foodbridge Module Customer — "B2B Customers"
+  ---------------------------------------------------------------
+  RECREATION of https://b2bgreens.com/platform/customers (tenant "QA store",
+  user "Mahesh · Admin") — the baseline this module iterates from.
+
+  Per addendum-002, this screen is built from the real source of the running app
+  (github.com/exagon-ai/storefront-frontend) rather than eyeballed from the
+  screenshot: same field names, same derivations, same copy, same feature flags.
+  Provenance for every region:
+
+    region                    app source
+    ------------------------  ----------------------------------------------
+    page shell / sidebar      src/layout/Layout.jsx · components/sidebar/*
+    header + description      src/pages/Customers.jsx:456-508
+    bulk action dropdown      src/components/common/BulkActionDropdown.jsx
+    import / export / sample  src/components/common/UploadMany.jsx
+    search (debounced 400ms)  src/pages/Customers.jsx:605-644
+    tag filter chips          src/features/tags/EntityTagChips.jsx
+    table + row actions       src/components/customer/CustomerTable.jsx
+    add / edit drawer         src/components/drawer/CustomerDrawer.jsx
+    stock drawer              src/components/drawer/CustomerStockDrawer.jsx
+    delete confirmation       src/components/modal/DeleteModal.jsx
+    empty state               src/components/table/NotFound.jsx
+    pagination (20 per page)  src/components/common/CustomPagination.jsx
+
+  Standalone-openable: open this file directly to review the screen in isolation.
+  Also reachable from the wiring hub (../../index.html) and the module hub
+  (index.html). Data comes from seed.inline.js, which mirrors
+  ../../seed-data/seed.json (file:// blocks fetching local JSON).
+
+  Outgoing transitions (→ proto-FSM for SSOT-1 / SSOT-5):
+    - search / tag chip / page    → same screen, re-filtered list
+    - "+ B2B Customers" / pencil  → Add/Edit drawer over the list
+    - trash / Bulk Action→Delete  → Delete confirm modal → list
+    - Bulk Action → Assign tags   → Tag drawer → list
+    - bar-chart / gift            → Stock / Offers drawer
+    - Import                      → Import preview modal → list
+    - sidebar "Retail Customers"  → retail-customers.html (the only navigation)
+
+  Rules: HTML/CSS/vanilla JS only. No frameworks, no build step, no real API
+  calls. Disposable — informs the SSOTs, not imported by development/.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>B2B Customers — Foodbridge Module Customer</title>
+  <!-- No webfont: tailwind.config.js sets fontFamily.sans to system-ui, so the
+       deployed app never renders the Inter it preloads. styles.css matches. -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app" id="app"></div>
+  <script src="icons.js"></script>
+  <script src="seed.inline.js"></script>
+  <script src="shell.js"></script>
+  <script src="customers.js"></script>
+  <script>FB.mount("b2b");</script>
+</body>
+</html>

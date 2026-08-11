@@ -1,0 +1,1521 @@
+/* ==========================================================================
+   DISCOVERY — Foodbridge Module Customer — stylesheet
+
+   PIXEL-PARITY with the live storefront-admin. Every value below is the
+   computed equivalent of the app's literal Tailwind class strings — not an
+   approximation. Provenance for the ones that matter:
+
+     font stack     tailwind.config.js → fontFamily.sans =
+                    ['system-ui','sans-serif','Arial','Helvetica']
+                    (index.html preloads Inter but the config overrides it,
+                     so the deployed app never renders Inter — neither do we)
+     sidebar        DesktopSidebar.jsx  w-64 · border-r border-gray-200 ·
+                    shadow-sm · hidden lg:block   → breakpoint 1024px, NOT 768
+     sidebar body   SidebarContent.jsx  px-3 pb-4 · brand h-14 border-b mb-3 ·
+                    ul mt-2 space-y-2 pb-4 · item gap-3 px-3 py-2 rounded-lg ·
+                    active text-green-700 bg-green-50
+     submenu        SidebarSubMenu.jsx  ul ml-8 mt-1 space-y-1 text-sm ·
+                    item px-3 py-1 rounded · active text-green-700 bg-green-100
+     header         Header.jsx  h-14 sticky border-b shadow-sm · px-3 sm:px-6 ·
+                    title text-base font-semibold text-gray-700 tracking-tight
+     page padding   Main.jsx  px-3 sm:px-4 lg:px-6 · pt-3 sm:pt-4 · pb-4
+     table          @windmill/react-ui defaultTheme:
+                    container w-full overflow-hidden rounded-lg ring-1 ring-black/5
+                    header    text-xs font-semibold tracking-wide uppercase
+                              text-gray-500 border-b bg-gray-50
+                    cell      px-4 py-3 · body bg-white divide-y text-gray-700
+     row            CustomerTable.jsx  hover:bg-gray-50 border-b border-gray-200
+     catalog pill   inline-flex px-3 py-1 rounded-full bg-purple-50
+                    text-purple-700 border text-xs font-semibold
+     tag chips      EntityTagChips.jsx  h-8 rounded-full px-3 text-xs
+                    font-semibold · active border/bg-green-600 text-white
+     primary btn    h-10 px-4 rounded-md bg-emerald-500 hover:bg-emerald-600
+     bulk btn       h-10 min-w-[136px] px-3 py-2 rounded-md border-gray-200
+
+   Tailwind palette values used verbatim:
+     green-50  #f0fdf4   green-100 #dcfce7   green-400 #4ade80
+     green-200 #bbf7d0   green-600 #16a34a   green-700 #15803d
+     emerald-500 #10b981 emerald-600 #059669
+     gray-50 #f9fafb  gray-100 #f3f4f6  gray-200 #e5e7eb  gray-300 #d1d5db
+     gray-400 #9ca3af gray-500 #6b7280 gray-600 #4b5563  gray-700 #374151
+     gray-800 #1f2937 purple-50 #faf5ff purple-700 #7e22ce
+     red-50 #fef2f2   red-600 #dc2626   blue-600 #2563eb
+   ========================================================================== */
+
+:root {
+  --green-50:  #f0fdf4;
+  --green-100: #dcfce7;
+  --green-200: #bbf7d0;
+  --green-400: #4ade80;
+  --green-500: #22c55e;
+  --green-600: #16a34a;
+  --green-700: #15803d;
+  --emerald-500: #10b981;
+  --emerald-600: #059669;
+
+  --gray-50:  #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+
+  --purple-50:  #faf5ff;
+  --purple-700: #7e22ce;
+  --zinc-500:   #71717a;
+  --slate-50:   #f8fafc;
+  --slate-100:  #f1f5f9;
+  --slate-200:  #e2e8f0;
+  --slate-300:  #cbd5e1;
+  --slate-400:  #94a3b8;
+  --slate-500:  #64748b;
+  --slate-600:  #475569;
+  --slate-700:  #334155;
+  --slate-800:  #1e293b;
+  --emerald-50: #ecfdf5;
+  --emerald-700: #047857;
+  --red-500:    #ef4444;
+  --blue-600:   #2563eb;
+  --red-50:     #fef2f2;
+  --red-600:    #dc2626;
+  --red-700:    #b91c1c;
+
+  --line: var(--gray-200);
+  --muted: var(--gray-500);
+  --card: #ffffff;
+
+  /* shadow-sm / shadow-md / shadow-xl, verbatim from Tailwind */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / .05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / .1), 0 2px 4px -2px rgb(0 0 0 / .1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / .1), 0 8px 10px -6px rgb(0 0 0 / .1);
+  /* ring-1 ring-black ring-opacity-5 */
+  --ring-1-black-5: 0 0 0 1px rgb(0 0 0 / .05);
+
+  --sidebar-w: 16rem;   /* w-64  */
+  --header-h:  3.5rem;  /* h-14  */
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--gray-50);
+  color: var(--gray-700);
+  /* tailwind.config.js fontFamily.sans — the app never renders Inter */
+  font-family: system-ui, sans-serif, Arial, Helvetica;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { text-decoration: none; color: inherit; }
+button { font: inherit; }
+ul { list-style: none; margin: 0; padding: 0; }
+
+/* ==========================================================================
+   App shell
+   ========================================================================== */
+
+.app { display: flex; min-height: 100vh; }
+
+/* DesktopSidebar: w-64, hidden below lg (1024px) */
+.sidebar {
+  width: var(--sidebar-w);
+  flex: 0 0 var(--sidebar-w);
+  background: var(--card);
+  border-right: 1px solid var(--gray-200);
+  box-shadow: var(--shadow-sm);
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 30;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 0 0.75rem 1rem;   /* px-3 pb-4 */
+  color: var(--gray-500);
+}
+
+/* brand — h-14 border-b, then mb-3 */
+.brand {
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;              /* gap-3 */
+  padding: 0.375rem 0.25rem; /* py-1.5 px-1 */
+  border-bottom: 1px solid var(--gray-200);
+  margin-bottom: 0.75rem;
+  flex-shrink: 0;
+}
+.brand .mark { flex-shrink: 0; display: flex; }
+.brand .mark svg { width: 1.75rem; height: 1.75rem; }   /* w-7 h-7 */
+.brand .name {
+  font-size: 0.875rem;       /* text-sm */
+  font-weight: 600;
+  color: var(--gray-800);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-scroll { flex: 1; overflow-y: auto; scrollbar-width: none; }
+.nav-scroll::-webkit-scrollbar { display: none; }
+
+.nav { margin-top: 0.5rem; padding-bottom: 1rem; }        /* mt-2 pb-4 */
+.nav > li + li { margin-top: 0.5rem; }                    /* space-y-2 */
+
+/* top-level item + the two hard-coded footer items */
+.nav-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;                    /* gap-3 */
+  padding: 0.5rem 0.75rem;         /* py-2 px-3 */
+  border: 0;
+  background: transparent;
+  border-radius: 0.5rem;           /* rounded-lg */
+  text-align: left;
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: background-color .15s, color .15s;
+}
+.nav-item:hover { background: var(--gray-100); }
+.nav-item .ic { display: flex; flex-shrink: 0; }
+.nav-item .ic svg { width: 1.25rem; height: 1.25rem; }    /* w-5 h-5 */
+.nav-item .ic.green { color: var(--green-600); }
+
+/* group header — SidebarSubMenu button */
+.nav-group > button {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  background: transparent;
+  border-radius: 0.5rem;
+  text-align: left;
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: background-color .15s, color .15s;
+}
+.nav-group > button:hover { background: var(--gray-100); color: var(--green-600); }
+.nav-group > button .lbl { display: inline-flex; align-items: center; }
+.nav-group > button .ic { display: flex; flex-shrink: 0; }
+.nav-group > button .ic svg { width: 1.25rem; height: 1.25rem; }
+.nav-group > button .txt { margin-left: 1rem; }           /* ml-4 */
+.nav-group > button .chev { padding-left: 1rem; display: flex; }
+.nav-group > button .chev svg { width: 1rem; height: 1rem; }
+/* active group: text-green-700 bg-green-50 */
+.nav-group.child-active > button { color: var(--green-700); background: var(--green-50); }
+.nav-group.child-active > button:hover { background: var(--green-50); color: var(--green-700); }
+
+/* submenu — ul ml-8 mt-1 space-y-1 text-sm */
+.nav-sub { display: none; margin: 0.25rem 0 0 2rem; font-size: 0.875rem; color: var(--gray-600); }
+.nav-group.open .nav-sub { display: block; }
+.nav-sub > li + li { margin-top: 0.25rem; }
+.nav-sub a {
+  display: flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;        /* py-1 px-3 */
+  border-radius: 0.25rem;          /* rounded */
+  cursor: pointer;
+  transition: background-color .15s, color .15s;
+}
+.nav-sub a:hover { background: var(--gray-100); color: var(--gray-600); }
+.nav-sub .dash { display: flex; margin-right: 0.25rem; }
+.nav-sub .dash svg { width: 0.75rem; height: 0.75rem; }   /* h-3 w-3 */
+/* active child: text-green-700 bg-green-100 — a full step darker than the group */
+.nav-sub a.active { color: var(--green-700); background: var(--green-100); }
+
+/* Route Delivery — border-t pt-3 mt-1 */
+.nav-foot {
+  border-top: 1px solid var(--gray-200);
+  padding-top: 0.75rem;
+  margin-top: 0.25rem;
+  flex-shrink: 0;
+}
+/* Store QR Code — its own py-4 block at the very bottom */
+.nav-qr { padding: 1rem 0; flex-shrink: 0; }
+.nav-qr .nav-item { font-size: 0.875rem; font-weight: 500; }
+
+.main { flex: 1; min-width: 0; margin-left: var(--sidebar-w); }
+
+/* Header — h-14 sticky, border-b, shadow-sm */
+.topbar {
+  height: var(--header-h);
+  background: var(--card);
+  border-bottom: 1px solid var(--gray-200);
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;               /* px-6 at sm+ */
+}
+.topbar-left { display: flex; align-items: center; gap: 0.375rem; min-width: 0; }
+.hamburger {
+  border: 0;
+  background: transparent;
+  padding: 0.5rem;                 /* p-2 */
+  border-radius: 0.5rem;
+  color: var(--gray-600);
+  cursor: pointer;
+  display: flex;
+  transition: background-color .2s;
+}
+.hamburger:hover { background: var(--gray-100); }
+.hamburger svg { width: 1.25rem; height: 1.25rem; }
+.crumb {
+  margin: 0 0 0 0.5rem;
+  font-size: 1rem;                 /* text-base */
+  font-weight: 600;
+  color: var(--gray-700);
+  letter-spacing: -0.025em;        /* tracking-tight */
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;                     /* space-x-2 inside the avatar group */
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color .2s;
+}
+.who:hover { background: var(--gray-50); }
+.who .avatar {
+  position: relative;
+  width: 2.5rem; height: 2.5rem;   /* sm:h-10 sm:w-10 */
+  border-radius: 9999px;
+  background-image: linear-gradient(to bottom right, var(--emerald-500), var(--emerald-600));
+  color: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 0 2px var(--green-200), var(--shadow-md);
+  flex-shrink: 0;
+}
+.who .avatar svg { width: 1.25rem; height: 1.25rem; }
+.who .avatar .dot {
+  position: absolute;
+  right: -0.125rem; bottom: -0.125rem;
+  width: 0.75rem; height: 0.75rem;
+  border-radius: 9999px;
+  background: var(--green-400);
+  border: 2px solid #fff;
+}
+.who .meta { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.who .meta b {
+  font-size: 0.875rem; font-weight: 600; color: var(--gray-800);
+  max-width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.who .meta span { font-size: 0.75rem; color: var(--green-600); font-weight: 500; }
+.who .caret { display: flex; color: var(--gray-400); }
+.who .caret svg { width: 1rem; height: 1rem; }
+
+/* Main.jsx — px-3 sm:px-4 lg:px-6, pt-3 sm:pt-4, pb-4 */
+.page { padding: 0.75rem 0.75rem 1rem; }
+
+/* ==========================================================================
+   Page header / toolbar / search
+   ========================================================================== */
+
+/* Header Card — `!bg-transparent ... mb-5` wrapping `CardBody !p-0 !pt-6 !pb-4`.
+   The Card's own mb-5 is what separates it from the search Card; without it the
+   page reads noticeably tighter than the live app. */
+.head-card { padding: 1.5rem 0 1rem; margin-bottom: 1.25rem; }
+.page-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.page-head h1 { margin: 0 0 0.25rem; font-size: 1.25rem; font-weight: 600; color: var(--gray-800); }
+.page-head p  { margin: 0; font-size: 0.875rem; color: var(--gray-500); }
+.page-head .actions { display: flex; gap: 1rem; }
+
+/* Secondary toolbar — `mt-4` inside the same CardBody as the header row */
+.toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+
+/* Search Card — `mb-5` around `CardBody !p-0` + `form py-3` */
+.searchbar { padding: 0.75rem 0; margin-bottom: 1.25rem; }
+.searchbar .field { position: relative; }
+.searchbar .field > svg {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gray-400);
+  pointer-events: none;
+}
+
+/* myTheme.input.base carries BOTH `bg-white` and `bg-gray-100`; which one wins
+   depends on Tailwind's emitted order. The As-is captures settle it: every
+   input on the list and in both drawers renders WHITE, so `bg-white` is the
+   later rule. Same resolution applies to the offers table header below.
+   Nothing overrides the placeholder — it stays the browser default at 14px. */
+.input, .searchbar input {
+  display: block;
+  width: 100%;
+  height: 2.5rem;                  /* h-10 */
+  font-size: 0.875rem;             /* text-sm */
+  line-height: 1.25rem;            /* leading-5 */
+  padding: 0.25rem 0.75rem;        /* py-1 px-3 */
+  border: 1px solid var(--gray-200);
+  border-radius: 0.375rem;         /* rounded-md */
+  background: var(--card);
+  color: var(--gray-700);
+  outline: none;
+}
+.searchbar input { padding-left: 2.625rem; }
+.input:focus, .searchbar input:focus { background: var(--card); border-color: var(--gray-200); }
+.input[readonly], .input:disabled { opacity: .5; cursor: not-allowed; background: var(--gray-300); }
+/* myTheme.select.base — h-10 border-gray-200 bg-WHITE px-2 py-1 form-select */
+select.input { appearance: none; cursor: pointer; background: var(--card); padding: 0.25rem 0.5rem; }
+textarea.input { min-height: 5rem; height: auto; padding: 0.75rem; background: var(--card); }
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 2.5rem;                  /* h-10 */
+  padding: 0 1rem;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  background: var(--card);
+  color: var(--gray-700);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn svg { flex-shrink: 0; }
+.btn-primary { background: var(--emerald-500); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--emerald-600); }
+.btn-outline { border-color: var(--gray-200); }
+.btn-outline:hover:not(:disabled) { background: var(--gray-100); }
+.btn-danger { background: var(--red-600); color: #fff; }
+.btn-danger:hover:not(:disabled) { background: var(--red-700); }
+/* BulkActionDropdown trigger: min-w-[136px] px-3 py-2 font-medium */
+.btn-bulk { min-width: 8.5rem; padding: 0.5rem 0.75rem; font-weight: 500; border-color: var(--gray-200); }
+.btn-bulk:hover:not(:disabled) { background: var(--gray-100); }
+.btn-link {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--green-700); font-size: 0.75rem; text-decoration: underline;
+}
+
+/* ==========================================================================
+   Tag chips — EntityTagChips.jsx
+   ========================================================================== */
+
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 2rem;                    /* h-8 */
+  max-width: 11.25rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--gray-200);
+  border-radius: 9999px;
+  background: var(--card);
+  color: var(--gray-700);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.chip:hover { border-color: var(--green-200); background: var(--green-50); color: var(--green-700); }
+.chip svg { flex-shrink: 0; }
+.chip .count { color: var(--gray-400); }
+.chip.active { background: var(--green-600); border-color: var(--green-600); color: #fff; }
+.chip.active:hover { background: var(--green-600); color: #fff; }
+.chip.active .count { color: rgb(255 255 255 / .8); }
+
+/* ==========================================================================
+   Table — windmill TableContainer / TableHeader / TableCell
+   ========================================================================== */
+
+/* myTheme.tableContainer — `w-full overflow-hidden border border-gray-200
+   rounded-lg`. The app replaces windmill's ring with a real border. */
+.table-wrap {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--gray-200);
+  border-radius: 0.5rem;
+  background: var(--card);
+  margin-bottom: 2rem;
+}
+/* DEVIATION (V5) — the live TableContainer is `overflow-hidden` around a
+   `w-full whitespace-nowrap` table, so on a narrow screen the right-hand
+   columns (Catalog, Actions) are CLIPPED and unreachable: no scroll, no wrap,
+   no card view. That is finding F11. We scroll instead, purely so the
+   prototype stays reviewable on a phone — everything else about the mobile
+   table is reproduced as-is. */
+.table-scroll { overflow-x: auto; }
+
+/* windmill <Table> — w-full whitespace-nowrap */
+table.grid { width: 100%; border-collapse: collapse; white-space: nowrap; }
+/* myTheme.tableHeader — `text-sm font-medium tracking-wide text-left
+   text-zinc-500 uppercase border-b border-gray-200 bg-WHITE`.
+   Not windmill's default text-xs/font-semibold/bg-gray-50. */
+table.grid thead {
+  font-size: 0.875rem;             /* text-sm */
+  font-weight: 500;                /* font-medium */
+  letter-spacing: 0.025em;         /* tracking-wide */
+  text-transform: uppercase;
+  color: var(--zinc-500);
+  background: var(--card);
+}
+table.grid thead th {
+  height: 3rem;                    /* !h-12 from the page */
+  padding: 0 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--gray-200);
+  white-space: nowrap;
+  font-weight: 500;
+}
+/* myTheme.tableBody — `bg-white divide-y divide-gray-100 text-gray-800` */
+table.grid tbody { background: var(--card); color: var(--gray-800); }
+/* myTheme.tableCell — px-4 py-2 (windmill's default is py-3) */
+table.grid tbody td {
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--gray-100);
+  vertical-align: middle;
+  font-size: 0.875rem;
+}
+table.grid tbody tr:hover { background: var(--gray-50); }
+/* Selection highlight — an addition on top of the As-is (the live table has no
+   selected-row styling); see addendum-002 V4. */
+table.grid tbody tr.selected,
+table.grid tbody tr.selected:hover { background: var(--green-50); }
+
+td.name  { font-weight: 500; }
+td.phone { font-weight: 500; }
+/* max-w-[8rem] truncate */
+td.address span { display: block; max-width: 8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.muted { color: var(--gray-400); }
+
+/* catalog chip — bg-purple-50 text-purple-700 border (gray-200) */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid var(--gray-200);
+  background: var(--purple-50);
+  color: var(--purple-700);
+}
+.pill.none { background: var(--gray-50); color: var(--gray-400); }
+
+.row-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.25rem; }
+.row-tags span {
+  font-size: 0.625rem; font-weight: 600; padding: 0.0625rem 0.4375rem;
+  border-radius: 9999px; background: var(--green-50); color: var(--green-700);
+}
+
+/* row action buttons — p-2, text-gray-800, per-action hover colour */
+.row-actions { display: flex; gap: 0.25rem; margin-left: -0.5rem; }
+.icon-btn {
+  border: 0;
+  background: transparent;
+  padding: 0.5rem;
+  color: var(--gray-800);
+  cursor: pointer;
+  display: inline-flex;   /* a button is inline by default; flex only its content */
+  position: relative;
+  transition: color .15s;
+}
+/* Icon sizes are mixed, and that is what produces the 57px row pitch:
+   py-2 (16) + p-2 button padding (16) + the TALLEST glyph (24) + 1px divider.
+   Stock is lucide `BarChart2` at its package default of 24; Offers/Edit/Delete
+   are react-icons/fi at their default 1em = 16. `Tooltip` passes no size. */
+.icon-btn svg { width: 1rem; height: 1rem; }
+.icon-btn.stock svg { width: 1.5rem; height: 1.5rem; }
+.icon-btn.stock:hover { color: var(--emerald-600); }
+.icon-btn.offer:hover,
+.icon-btn.send:hover  { color: var(--blue-600); }
+.icon-btn.edit:hover  { color: var(--green-600); }
+.icon-btn.del:hover   { color: var(--red-600); }
+/* react-tooltip: dark bubble above the trigger */
+.icon-btn[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 0.25rem);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--tip, #059669);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .12s;
+  z-index: 5;
+}
+.icon-btn.offer, .icon-btn.send { --tip: #2563eb; }
+.icon-btn.edit, .icon-btn.del   { --tip: #1f2937; }
+.icon-btn:hover::after { opacity: 1; }
+
+/* CheckBox.jsx — `peer h-4 w-4 shrink-0 rounded-sm border border-primary …`.
+   `border-primary` is NOT defined in tailwind.config.js (only `brand` is), and
+   the `data-[state=checked]` classes are a radix pattern with no data-state
+   attribute here — so nothing overrides the control and the browser renders
+   its NATIVE checkbox. Reproduced: native, 16px, no custom tick. */
+.cb {
+  width: 1rem; height: 1rem;
+  flex-shrink: 0;
+  border-radius: 0.125rem;         /* rounded-sm */
+  cursor: pointer;
+  vertical-align: middle;
+  margin: 0;
+}
+
+/* myTheme.tableFooter — `px-4 py-3 border-t border-gray-200 bg-WHITE
+   text-gray-500` (windmill's default bg-gray-50 is overridden) */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--gray-200);
+  background: var(--card);
+  color: var(--gray-500);
+  flex-wrap: wrap;
+}
+/* `SHOWING {start}–{end} OF {total}` — font-semibold tracking-wide uppercase
+   text-xs; page buttons px-3 py-1 rounded-md text-xs, active bg-green-500;
+   prev/next are ‹ › glyphs at px-2 py-1. */
+.pager .info { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.025em; text-transform: uppercase; }
+.pager .pages { display: flex; align-items: center; gap: 0.5rem; }
+.pager .pages button {
+  border: 0;
+  background: transparent;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  color: var(--gray-600);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.25rem 0.75rem;
+  line-height: 1.25rem;
+}
+.pager .pages button.step { padding: 0.25rem 0.5rem; font-size: 0.875rem; color: var(--gray-500); }
+.pager .pages button:hover:not(:disabled) { background: var(--gray-200); }
+.pager .pages button.active { background: var(--green-500); color: #fff; }
+.pager .pages button.active:hover { background: var(--green-600); }
+.pager .pages button:disabled { opacity: .5; cursor: not-allowed; background: transparent; }
+
+/* empty state — NotFound.jsx */
+.empty { text-align: center; padding: 1.25rem; margin: 1.25rem 0; }
+.empty .art {
+  width: 6rem; height: 6rem; margin: 1rem auto 1.25rem;
+  border-radius: 9999px; background: var(--green-50);
+  display: grid; place-items: center; color: var(--green-600);
+}
+.empty .art svg { width: 2.5rem; height: 2.5rem; }
+.empty h2 { margin: 0.5rem 0 0.25rem; font-size: 1.5rem; font-weight: 500; color: var(--gray-600); }
+.empty p { margin: 0; color: var(--gray-400); font-size: 0.875rem; }
+
+/* ==========================================================================
+   Overlays — menu, drawer, modal, toast
+   ========================================================================== */
+
+/* BulkActionDropdown menu — `z-[9999] w-max min-w-52 max-w-xs overflow-hidden
+   rounded-md bg-white shadow-lg border border-gray-100`. Items are a single
+   line: `w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700
+   hover:bg-gray-50`, delete in `text-red-600 hover:bg-red-50`. No descriptions. */
+.menu {
+  position: fixed;
+  z-index: 90;
+  width: max-content;
+  min-width: 13rem;
+  max-width: 20rem;
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--gray-100);
+  border-radius: 0.375rem;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / .1), 0 4px 6px -4px rgb(0 0 0 / .1);
+}
+.menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0.625rem 1rem;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  color: var(--gray-700);
+  transition: background-color .15s;
+}
+.menu button:hover { background: var(--gray-50); }
+.menu button svg { width: 1rem; height: 1rem; flex-shrink: 0; }
+.menu button.danger { color: var(--red-600); }
+.menu button.danger:hover { background: var(--red-50); }
+
+.scrim {
+  position: fixed; inset: 0;
+  /* myTheme.backdrop.base — `fixed inset-0 bg-black bg-opacity-50`, i.e.
+     Tailwind's bg-opacity utility: background-color: rgb(0 0 0 / var(--tw-bg-opacity, 1))
+     with --tw-bg-opacity:.5. Applies to every overlay (modal AND drawer). */
+  background: rgb(0 0 0 / .5);
+  z-index: 60;
+  opacity: 0;
+  transition: opacity .18s;
+}
+.scrim.show { opacity: 1; }
+/* GenerateSmartLinkModal's own backdrop — `bg-black/60 backdrop-blur-sm` */
+.scrim.blur-dark { background: rgb(0 0 0 / .6); backdrop-filter: blur(2px); }
+
+/* MainDrawer width: `windowDimension <= fullWidthBreakpoint ? "100%"
+   : widthProp || (XXlarge ? "85%" : "82%")`. `large` does not affect width —
+   every drawer in this module is 82% of the viewport. */
+.drawer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 82%;
+  background: var(--card);
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-xl);
+  transform: translateX(100%);
+  transition: transform .22s ease;
+}
+.drawer.show { transform: none; }
+.drawer.large { width: 82%; }
+/* MainDrawer's OWN default fullWidthBreakpoint is 575 (not 767) — every
+   Add/Edit/Stock/Offers drawer in this module uses that default. */
+@media (max-width: 575px) { .drawer:not(.narrow) { width: 100%; } }
+/* DirectoryDrawer (the tag-selection drawer) passes fullWidthBreakpoint={767}
+   AND its own drawerWidth="70%" — both different from MainDrawer's defaults. */
+.drawer.narrow { width: 70%; }
+@media (max-width: 767px) { .drawer.narrow { width: 100%; } }
+/* MainDrawer close button — absolute top-6 right-6, w-10 h-10 rounded-full
+   bg-white shadow-md text-red-500 hover:bg-red-100 */
+.drawer-x {
+  position: absolute;
+  top: 1.5rem; right: 1.5rem;
+  z-index: 10;
+  width: 2.5rem; height: 2.5rem;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--card);
+  box-shadow: var(--shadow-md);
+  color: var(--red-500);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background-color .15s, color .15s;
+}
+.drawer-x:hover { background: #fee2e2; color: var(--gray-700); }
+.drawer-x svg { width: 1rem; height: 1rem; }
+
+/* Drawer header — p-6 border-b border-gray-100 bg-gray-50 */
+/* pr reserves room for the floating close button so a wrapped title/description
+   line never runs under it — the real risk on a narrow (100%-width) drawer. */
+.drawer-head { padding: 1.5rem 4.5rem 1.5rem 1.5rem; border-bottom: 1px solid var(--gray-100); background: var(--gray-50); }
+/* DirectoryDrawer's own header: no tint, bold (not semibold) title, pr-20 so
+   the floating close button never overlaps the text. */
+.drawer.narrow .drawer-head { background: var(--card); padding: 1.5rem 3.75rem 1.5rem 1.5rem; }
+.drawer.narrow .drawer-head h3 { font-weight: 700; }
+.drawer-head h3 { margin: 0; font-size: 1.125rem; font-weight: 600; color: #111827; }  /* text-lg text-gray-900 */
+.drawer-head p  { margin: 0.25rem 0 0; font-size: 0.875rem; color: var(--gray-600); }  /* text-sm mt-1 */
+.drawer-head .hrow { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.drawer-body { flex: 1; overflow-y: auto; padding: 1.5rem; }
+
+/* DrawerButton — fixed bar, `border-t border-gray-100 bg-gray-50 px-6 py-4
+   lg:py-8`, gap-3 lg:gap-6. SUBMIT COMES FIRST, then Cancel: a green
+   full-width h-12 primary, and a white h-12 outline with RED text. */
+.drawer-foot {
+  border-top: 1px solid var(--gray-100);
+  padding: 1rem 1.5rem;
+  display: flex;
+  gap: 0.75rem;
+  background: var(--gray-50);
+}
+@media (min-width: 1024px) { .drawer-foot { padding: 2rem 1.5rem; gap: 1.5rem; } }
+.drawer-foot .btn { flex: 1; min-width: 0; height: 3rem; }
+.btn-submit { background: var(--green-600); color: #fff; border-color: transparent; font-weight: 500; }
+.btn-submit:hover:not(:disabled) { background: var(--green-700); }
+.btn-cancel { background: var(--card); border-color: var(--gray-200); color: var(--red-500); font-weight: 500; }
+.btn-cancel:hover:not(:disabled) { background: #fef2f2; border-color: #fee2e2; color: #dc2626; }
+
+/* Drawer form rows — `grid grid-cols-6 gap-3 md:gap-5 xl:gap-6 mb-6` with
+   LabelArea `col-span-4 sm:col-span-2` and the control `col-span-8 sm:col-span-4`
+   → a 2 : 4 split of six columns, i.e. one third / two thirds. */
+.frow { display: grid; grid-template-columns: 1fr; gap: 0.75rem; margin-bottom: 1.5rem; }
+@media (min-width: 640px) {
+  .frow { grid-template-columns: 2fr 4fr; gap: 1.5rem; align-items: start; }
+  .frow > label.lab { padding-top: 0.625rem; }
+}
+/* LabelArea — `block text-sm text-gray-800` + `font-medium`, required star red-500 */
+.frow > label.lab { font-size: 0.875rem; font-weight: 500; color: var(--gray-800); }
+.frow > label.lab .req { color: var(--red-500); margin-left: 0.25rem; }
+.frow .hint { font-size: 0.75rem; color: var(--gray-500); margin: 0 0 0.625rem; }
+.frow .err-msg { color: var(--red-600); font-size: 0.75rem; margin-top: 0.3125rem; display: none; }
+.frow.invalid .err-msg { display: block; }
+.frow.invalid .input { border-color: var(--red-600); }
+.inline { display: flex; gap: 0.5rem; align-items: flex-start; }
+.inline .input { flex: 1; }
+
+/* CheckBox / radio look from the drawers */
+.choice-row { display: flex; gap: 1.5rem; align-items: center; padding-top: 0.5rem; }
+.choice { display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none; font-size: 0.875rem; }
+.choice input { display: none; }
+.choice .box {
+  width: 1.25rem; height: 1.25rem;
+  border: 2px solid var(--gray-400);
+  border-radius: 0.125rem;
+  background: #fff;
+  display: grid; place-items: center;
+  flex-shrink: 0;
+}
+.choice input:checked + .box { background: var(--blue-600); border-color: var(--blue-600); }
+.choice input:checked + .box::after {
+  content: ""; width: 0.3125rem; height: 0.5625rem;
+  border: solid #fff; border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+.radio-list { display: flex; flex-direction: column; gap: 0.625rem; }
+.radio { display: flex; align-items: flex-start; gap: 0.75rem; cursor: pointer; user-select: none; }
+.radio input { display: none; }
+.radio .dot {
+  margin-top: 0.125rem;
+  width: 1.25rem; height: 1.25rem; flex: 0 0 1.25rem;
+  border: 2px solid var(--gray-400);
+  border-radius: 9999px;
+  background: #fff;
+  display: grid; place-items: center;
+}
+.radio input:checked + .dot { border-color: var(--blue-600); }
+.radio input:checked + .dot::after { content: ""; width: 0.625rem; height: 0.625rem; border-radius: 9999px; background: var(--blue-600); }
+.radio span.txt { font-size: 0.875rem; color: var(--gray-700); }
+
+.hidden { display: none !important; }
+
+/* DeleteModal */
+/* myTheme.backdrop — `fixed inset-0 flex items-end bg-black bg-opacity-50
+   sm:items-center sm:justify-center`: below the sm breakpoint (640px) the
+   modal is a BOTTOM SHEET flush to the viewport edge, not centered.
+   myTheme.modal — `w-full px-6 py-4 bg-white rounded-t-lg sm:rounded-lg
+   sm:m-4 sm:max-w-xl`: square top corners on mobile, rounded only at sm+. */
+.modal-wrap {
+  position: fixed; inset: 0; z-index: 80;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+@media (min-width: 640px) { .modal-wrap { align-items: center; padding: 1rem; } }
+/* RetailCampaignLinkModal ships its own `fixed inset-0 flex items-center
+   justify-center p-4` — always centered, no bottom-sheet behaviour. */
+.modal-wrap.always-center { align-items: center; padding: 1rem; }
+.modal {
+  position: relative;
+  width: 100%;
+  max-width: 36rem;                /* sm:max-w-xl */
+  background: var(--card);
+  border-radius: 0.75rem 0.75rem 0 0;
+  box-shadow: var(--shadow-xl);
+  padding: 1rem 1.5rem;
+  overflow: hidden;
+  font-size: 0.875rem;
+  color: var(--gray-800);
+}
+@media (min-width: 640px) { .modal { border-radius: 0.5rem; margin: 1rem; } }
+.always-center .modal { border-radius: 0.75rem; margin: 0; }
+/* RetailCampaignLinkModal — max-w-md */
+.modal.small { max-width: 28rem; padding: 0; }
+/* GenerateSmartLinkModal — max-w-4xl, h-[92vh], flex column */
+.modal.tall {
+  max-width: 56rem;
+  height: 92vh;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.modal .mbody { padding: 2rem 1.5rem 0.5rem; margin-bottom: 1.5rem; text-align: center; }
+.modal.wide .mbody { text-align: left; }
+/* h-12 w-12 rounded-full bg-red-50 with a FiTrash2 at h-5 w-5 text-red-600 */
+.modal .ico {
+  width: 3rem; height: 3rem; margin: 0 auto 1rem;
+  border-radius: 9999px; background: var(--red-50);
+  display: grid; place-items: center; color: var(--red-600);
+}
+.modal .ico svg { width: 1.25rem; height: 1.25rem; }
+.modal h2 { margin: 0; font-size: 1rem; font-weight: 600; color: #111827; }
+.modal h2 .target { color: var(--red-600); }
+.modal p { margin: 0.375rem 0 0; font-size: 0.875rem; color: var(--gray-500); line-height: 1.5; }
+.modal code { background: var(--gray-100); padding: 0.125rem 0.25rem; border-radius: 0.25rem; font-size: 0.8125rem; }
+/* DeleteModal footer inner div — `flex w-full flex-col-reverse gap-2
+   sm:w-auto sm:flex-row sm:justify-end sm:gap-3` INSIDE a `ModalFooter
+   justify-center`: below 640px the buttons STACK full-width with Delete
+   drawn first in the DOM-reversed (i.e. visually ON TOP), Cancel below. */
+.modal .modal-foot {
+  display: flex; flex-direction: column-reverse; gap: 0.5rem;
+  justify-content: center;
+  margin: 0 -1.5rem -1rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--gray-50);
+}
+.modal .modal-foot .btn-modal { width: 100%; }
+@media (min-width: 640px) {
+  .modal .modal-foot { flex-direction: row; gap: 1rem; }
+  .modal .modal-foot .btn-modal { width: auto; }
+}
+.modal.wide .modal-foot { justify-content: flex-end; }
+/* Cancel: h-10 px-5 rounded-md border-gray-300 bg-white text-gray-700
+   Delete: h-10 px-5 rounded-md bg-red-600 text-white — no icon */
+.btn-modal {
+  height: 2.5rem; padding: 0 1.25rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem; font-weight: 500;
+  border: 1px solid var(--gray-300);
+  background: var(--card); color: var(--gray-700);
+  cursor: pointer;
+}
+.btn-modal:hover { background: var(--gray-50); }
+.btn-modal.danger { border-color: transparent; background: var(--red-600); color: #fff; }
+.btn-modal.danger:hover { background: var(--red-700); }
+
+/* ==========================================================================
+   RetailCampaignLinkModal — "Send Ordering Link"
+   ========================================================================== */
+
+.rcl-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--gray-100);
+}
+.rcl-head h2 { margin: 0; font-size: 1rem; font-weight: 600; color: #111827; }
+.rcl-x {
+  border: 0; background: transparent; cursor: pointer;
+  padding: 0.375rem; border-radius: 0.375rem; color: var(--gray-400);
+  display: grid; place-items: center;
+}
+.rcl-x:hover { color: var(--gray-600); background: var(--gray-100); }
+.rcl-x svg { width: 1rem; height: 1rem; }
+
+.rcl-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+.rcl-info { background: var(--gray-50); border-radius: 0.5rem; padding: 0.75rem 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.rcl-row { display: flex; align-items: center; gap: 0.625rem; font-size: 0.875rem; color: var(--gray-600); }
+.rcl-row svg { width: 1rem; height: 1rem; color: var(--gray-400); flex-shrink: 0; }
+.rcl-row .strong { font-weight: 500; color: var(--gray-800); }
+.rcl-desc { margin: 0; font-size: 0.875rem; color: var(--gray-600); line-height: 1.6; }
+
+.rcl-foot {
+  display: flex; align-items: center; justify-content: flex-end; gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--gray-100);
+}
+.btn-text {
+  border: 0; background: transparent; cursor: pointer;
+  padding: 0.5rem 1rem; border-radius: 0.5rem;
+  font-size: 0.875rem; font-weight: 500; color: var(--gray-600);
+}
+.btn-text:hover { color: #111827; background: var(--gray-100); }
+.btn-whatsapp {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  border: 0; cursor: pointer;
+  padding: 0.5rem 1rem; border-radius: 0.5rem;
+  font-size: 0.875rem; font-weight: 600;
+  background: var(--green-600); color: #fff;
+}
+.btn-whatsapp:hover { background: var(--green-700); }
+.btn-whatsapp svg { width: 1rem; height: 1rem; }
+
+/* ==========================================================================
+   GenerateSmartLinkModal — "Create Campaign Links"
+   ========================================================================== */
+
+.gsl-head { flex-shrink: 0; border-bottom: 1px solid var(--gray-200); padding: 0.75rem 1.25rem; }
+.gsl-head-row { display: flex; align-items: center; gap: 0.75rem; }
+.gsl-icon {
+  flex-shrink: 0; width: 2.25rem; height: 2.25rem;
+  border-radius: 0.5rem; background: #eff6ff;
+  display: grid; place-items: center; color: var(--blue-600);
+}
+.gsl-icon svg { width: 1.25rem; height: 1.25rem; }
+.gsl-titles { flex: 1; min-width: 0; }
+.gsl-titles h2 { margin: 0; font-size: 1rem; font-weight: 600; color: #111827; }
+.gsl-titles p { margin: 0.125rem 0 0; font-size: 0.75rem; color: var(--gray-500); }
+.gsl-head .rcl-x { flex-shrink: 0; }
+.gsl-banner {
+  display: flex; align-items: flex-start; gap: 0.5rem;
+  margin-top: 0.625rem; padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem; font-size: 0.8125rem; line-height: 1.5;
+}
+.gsl-banner svg { width: 1rem; height: 1rem; flex-shrink: 0; margin-top: 0.0625rem; }
+.gsl-banner.info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
+.gsl-banner.warn { background: #fffbeb; border: 1px solid #fde68a; color: #b45309; margin-top: 0; }
+
+.gsl-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0.75rem 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.gsl-selectall {
+  display: flex; align-items: center; gap: 0.625rem;
+  padding-bottom: 0.5rem; margin-bottom: 0.25rem;
+  border-bottom: 1px solid var(--gray-200);
+  cursor: pointer;
+}
+.gsl-selectall span:nth-child(2) { font-size: 0.875rem; font-weight: 500; color: var(--gray-700); }
+.gsl-selectall .gsl-count { margin-left: auto; font-size: 0.75rem; color: var(--gray-500); font-weight: 400; }
+
+.gsl-grid { display: grid; grid-template-columns: 1fr; gap: 0.5rem; }
+@media (min-width: 768px) { .gsl-grid { grid-template-columns: 1fr 1fr; } }
+.gsl-card {
+  display: flex; align-items: center; gap: 0.625rem;
+  padding: 0.5rem 0.75rem; border: 1px solid var(--gray-200); border-radius: 0.375rem;
+  cursor: pointer; transition: border-color .15s, background-color .15s;
+}
+.gsl-card:hover { border-color: var(--gray-300); background: var(--gray-50); }
+.gsl-card.on { border-color: var(--green-500); background: var(--green-50); }
+.gsl-card-body { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.gsl-name { font-size: 0.875rem; font-weight: 500; color: var(--gray-800); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gsl-phone { font-size: 0.75rem; color: var(--gray-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gsl-empty { grid-column: 1 / -1; padding: 2rem; text-align: center; color: var(--gray-400); font-size: 0.875rem; }
+
+.gsl-foot {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0.75rem 1.25rem; border-top: 1px solid var(--gray-200); background: #f9fafb80;
+}
+.gsl-selected { font-size: 0.875rem; font-weight: 500; color: var(--gray-600); }
+.warn-inline { display: inline-flex; align-items: center; gap: 0.25rem; color: #b45309; margin-left: 0.5rem; }
+.warn-inline svg { width: 0.875rem; height: 0.875rem; }
+.gsl-create { height: 2.5rem; padding: 0 1.25rem; }
+.gsl-create:disabled { background: var(--gray-300); color: var(--gray-500); cursor: not-allowed; }
+
+.gsl-results-head {
+  flex-shrink: 0; display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.625rem 1.25rem; border-bottom: 1px solid var(--green-200);
+  background: var(--green-50); color: var(--green-700); font-size: 0.875rem;
+}
+.gsl-results-head svg { width: 1rem; height: 1rem; }
+.gsl-results-head .muted { margin-left: 0.5rem; font-weight: 400; color: var(--emerald-700); }
+.gsl-ready { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--emerald-700); font-weight: 500; }
+.gsl-ready svg { width: 1rem; height: 1rem; }
+
+@media (max-width: 639px) {
+  .modal.tall { height: 100%; max-height: 100vh; border-radius: 0; margin: 0; }
+  .modal.small { max-width: 100%; }
+  .gsl-grid { grid-template-columns: 1fr; }
+  .gsl-foot { flex-direction: column; align-items: stretch; }
+  .gsl-create { width: 100%; justify-content: center; }
+}
+
+/* notifySuccess / notifyError — react-toastify: a white card top-centre with a
+   round tinted status icon, a close ×, and a coloured progress bar along the
+   bottom that drains over the toast's life. */
+.toasts {
+  position: fixed;
+  top: 0.75rem; left: 50%;
+  transform: translateX(-50%);
+  z-index: 120;
+  display: flex; flex-direction: column; gap: 0.5rem;
+  width: min(20rem, calc(100vw - 1.5rem));
+}
+.toast {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  overflow: hidden;
+  background: var(--card);
+  border-radius: 0.25rem;
+  box-shadow: 0 1px 10px 0 rgb(0 0 0 / .1), 0 2px 15px 0 rgb(0 0 0 / .05);
+  padding: 0.875rem 2rem 0.875rem 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: var(--gray-800);
+  animation: toast-in .25s cubic-bezier(.21,1.02,.73,1);
+}
+.toast .ticon {
+  flex-shrink: 0;
+  width: 1.25rem; height: 1.25rem;
+  border-radius: 9999px;
+  display: grid; place-items: center;
+  color: #fff; font-size: 0.75rem; font-weight: 700;
+  background: var(--emerald-500);
+}
+.toast.error .ticon { background: var(--red-500); }
+.toast.info  .ticon { background: var(--blue-600); }
+.toast .tclose {
+  position: absolute; top: 0.375rem; right: 0.5rem;
+  border: 0; background: transparent; cursor: pointer;
+  color: var(--gray-400); font-size: 1rem; line-height: 1; padding: 0.125rem;
+}
+.toast .tclose:hover { color: var(--gray-700); }
+.toast::after {
+  content: "";
+  position: absolute; left: 0; bottom: 0; height: 4px;
+  background: var(--emerald-500);
+  animation: toast-bar 3.2s linear forwards;
+}
+.toast.error::after { background: var(--red-500); }
+.toast.info::after  { background: var(--blue-600); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+@keyframes toast-bar { from { width: 100%; } to { width: 0; } }
+
+/* ── CustomerStockDrawer ────────────────────────────────────────────────────
+   Segments are BOTH windmill `<Button>` (primary green) in the source — there
+   is no muted/inactive variant; only the panel below changes. */
+.seg {
+  display: flex; gap: 0.75rem;
+  flex-shrink: 0;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--gray-100);
+  background: var(--card);
+}
+.seg button {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  height: 2.5rem; padding: 0 1rem;
+  border: 1px solid transparent;
+  background: var(--green-600); color: #fff;
+  border-radius: 0.375rem; cursor: pointer;
+  font-size: 0.875rem; font-weight: 500;
+  transition: background-color .15s;
+}
+.seg button:hover { background: var(--green-700); }
+.seg button svg { width: 1rem; height: 1rem; }
+
+/* Customer name pill in the drawer header */
+.badge-name {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  padding: 0.125rem 0.625rem 0.125rem 0.1875rem; border-radius: 9999px;
+  background: var(--green-100); color: #065f46;
+  font-size: 0.875rem; font-weight: 500;
+}
+.badge-name i {
+  width: 1.25rem; height: 1.25rem; border-radius: 9999px;
+  background: var(--green-200); color: #064e3b;
+  display: grid; place-items: center;
+  font-size: 0.625rem; font-weight: 700; font-style: normal;
+}
+
+/* StockCountView — a slate-toned surface, distinct from the rest of the app */
+.stock-body { padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+.stock-grid { display: grid; gap: 1rem; }
+@media (min-width: 640px) { .stock-grid { grid-template-columns: 1fr 1fr; } }
+.stock-grid label { display: block; font-size: 0.75rem; font-weight: 500; color: var(--slate-600); margin-bottom: 0.375rem; }
+.stock-grid label .opt { color: var(--slate-400); font-weight: 400; }
+.stock-field {
+  width: 100%; height: 2.5rem; padding: 0 0.75rem;
+  font-size: 0.875rem;
+  border: 1px solid var(--slate-200); border-radius: 0.5rem;
+  background: var(--card); color: var(--slate-800);
+  outline: none;
+}
+.stock-field:focus { border-color: transparent; box-shadow: 0 0 0 2px #34d399; }
+.stock-field::placeholder { color: var(--slate-400); }
+
+.stock-card { background: var(--card); border: 1px solid var(--slate-100); border-radius: 0.75rem; overflow: hidden; }
+.stock-card .chead {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.75rem 1rem; border-bottom: 1px solid var(--slate-100);
+}
+.stock-card .chead h2 { margin: 0; font-size: 0.875rem; font-weight: 600; color: var(--slate-700); }
+.stock-card .chead .count { font-size: 0.75rem; color: var(--slate-400); }
+.stock-card .csearch { position: relative; padding: 0.625rem 1rem; background: var(--slate-50); border-bottom: 1px solid var(--slate-100); }
+.stock-card .csearch svg { position: absolute; left: 1.625rem; top: 50%; transform: translateY(-50%); color: var(--slate-400); pointer-events: none; }
+.stock-card .csearch input {
+  width: 100%; height: 2.25rem; padding: 0 1rem 0 2.25rem;
+  font-size: 0.875rem; border: 1px solid var(--slate-200); border-radius: 0.5rem;
+  background: var(--card); color: var(--slate-800); outline: none;
+}
+.stock-card .csearch input::placeholder { color: var(--slate-400); }
+
+table.stock { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+table.stock thead { background: var(--slate-50); }
+table.stock thead th {
+  padding: 0.75rem 1rem; text-align: left;
+  font-size: 0.75rem; font-weight: 600; color: var(--slate-500);
+  text-transform: uppercase; letter-spacing: 0.025em;
+  border-bottom: 1px solid var(--slate-200);
+}
+table.stock thead th.r { text-align: right; }
+table.stock tbody tr { border-bottom: 1px solid var(--slate-100); }
+table.stock tbody tr:last-child { border-bottom: 0; }
+table.stock tbody tr:hover { background: rgb(248 250 252 / .7); }
+table.stock td { padding: 0.75rem 1rem; vertical-align: middle; }
+table.stock td.r { text-align: right; white-space: nowrap; }
+.prod { display: flex; align-items: center; gap: 0.75rem; }
+.prod .thumb { width: 2.5rem; height: 2.5rem; flex-shrink: 0; background: var(--slate-100); border-radius: 0.25rem; display: grid; place-items: center; font-size: 1.125rem; }
+.prod .pname { margin: 0; font-size: 0.875rem; font-weight: 500; color: var(--slate-800); line-height: 1.2; }
+.prod .art { margin: 0.125rem 0 0; font-size: 0.75rem; color: var(--slate-400); }
+.cat { font-size: 0.875rem; color: var(--slate-500); white-space: nowrap; }
+.sys { font-size: 0.875rem; color: var(--slate-600); font-variant-numeric: tabular-nums; }
+.sys .u { margin-left: 0.25rem; font-size: 0.75rem; color: var(--slate-400); }
+.stepper { display: flex; align-items: center; justify-content: flex-end; gap: 0.25rem; }
+.stepper button {
+  width: 1.75rem; height: 1.75rem;
+  display: grid; place-items: center;
+  border: 1px solid var(--slate-200); border-radius: 0.375rem;
+  background: var(--card); color: var(--slate-500); cursor: pointer;
+  transition: background-color .15s, border-color .15s;
+}
+.stepper button:hover { background: var(--slate-50); border-color: var(--slate-300); }
+.stepper button svg { width: 0.75rem; height: 0.75rem; }
+.stepper input {
+  width: 5rem; height: 2rem; text-align: center;
+  font-size: 0.875rem; border: 1px solid var(--slate-200); border-radius: 0.375rem;
+  background: var(--card); color: var(--slate-800); outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.stepper input::placeholder { color: var(--slate-300); }
+.stepper input:focus { border-color: transparent; box-shadow: 0 0 0 2px #34d399; }
+/* Table diff cell — ProductRow.jsx. Over-counted reads BLUE (not green),
+   matching "here's extra stock, look at this" rather than "success". */
+.diff.tdiff { font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.diff.tdiff.none { color: var(--slate-300); }
+.diff.tdiff.match { color: var(--emerald-600); font-weight: 500; }
+.diff.tdiff.up { color: var(--blue-600); font-weight: 500; }
+.diff.tdiff.down { color: var(--red-500); font-weight: 500; }
+
+/* Card diff badge — ProductCard.jsx: a filled pill, no unit suffix. */
+.diff.cdiff {
+  flex-shrink: 0; font-size: 0.75rem; font-weight: 600;
+  padding: 0.125rem 0.5rem; border-radius: 9999px;
+}
+.diff.cdiff.none { display: none; }  /* ProductCard renders nothing until a value exists */
+.diff.cdiff.match { background: var(--emerald-50); color: var(--emerald-700); }
+.diff.cdiff.up { background: #eff6ff; color: var(--blue-600); }
+.diff.cdiff.down { background: var(--red-50); color: var(--red-600); }
+
+.stock-empty { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 3rem 0; color: var(--slate-400); }
+.stock-empty p { margin: 0; font-size: 0.875rem; font-weight: 500; color: var(--slate-600); }
+
+/* Table vs card: StockCountView mounts BOTH (`hidden md:block` /
+   `md:hidden`), CSS alone decides which one the viewport sees. */
+.stock-cards { display: none; }
+@media (max-width: 767px) {
+  .stock-table-wrap { display: none; }
+  .stock-cards { display: block; }
+}
+
+/* Mobile ProductCard.jsx */
+.pcard { padding: 1rem; border-bottom: 1px solid var(--slate-100); }
+.pcard:last-child { border-bottom: 0; }
+.pcard-top { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.75rem; }
+.pcard-top .thumb { width: 2.5rem; height: 2.5rem; flex-shrink: 0; background: var(--slate-100); border-radius: 0.25rem; display: grid; place-items: center; font-size: 1.125rem; }
+.pcard-info { flex: 1; min-width: 0; }
+.pcard-info .pname { margin: 0; font-size: 0.875rem; font-weight: 500; color: var(--slate-800); line-height: 1.2; }
+.pcard-info .art { margin: 0.125rem 0 0; font-size: 0.75rem; color: var(--slate-400); }
+.pcard-info .cat {
+  display: inline-block; margin-top: 0.25rem;
+  font-size: 0.75rem; color: var(--slate-500); background: var(--slate-100);
+  border-radius: 0.25rem; padding: 0.125rem 0.375rem; white-space: normal;
+}
+.pcard-bottom { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-left: 3.25rem; }
+.pcard-bottom .sys { font-size: 0.75rem; color: var(--slate-500); }
+.pcard-bottom .sys .u { margin-left: 0; }
+.pcard-bottom .stepper input { width: 4rem; height: 1.75rem; }
+
+/* StockCountView sticky footer — Cancel then the green Save */
+.stock-foot {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--gray-100);
+  background: var(--card);
+}
+.btn-slate {
+  height: 2.5rem; padding: 0 1.25rem;
+  font-size: 0.875rem; font-weight: 500;
+  border: 1px solid var(--slate-200); border-radius: 0.5rem;
+  background: var(--card); color: var(--slate-600); cursor: pointer;
+}
+.btn-slate:hover { background: var(--slate-50); }
+.btn-save {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  height: 2.5rem; padding: 0 1.5rem;
+  font-size: 0.875rem; font-weight: 600;
+  border: 0; border-radius: 0.5rem;
+  background: var(--emerald-600); color: #fff; cursor: pointer;
+  transition: background-color .15s;
+}
+.btn-save:hover:not(:disabled) { background: var(--emerald-700); }
+.btn-save:disabled { opacity: .5; cursor: not-allowed; }
+.btn-save svg { width: 1rem; height: 1rem; }
+
+/* ── OfferListView ──────────────────────────────────────────────────────── */
+.offer-bar { flex-shrink: 0; padding: 1rem 1.5rem; border-bottom: 1px solid var(--gray-100); background: var(--card); }
+.offer-body { padding: 1.5rem; }
+table.offers { width: 100%; border-collapse: collapse; }
+table.offers thead { background: var(--card); }
+table.offers thead th {
+  padding: 0.75rem 1.5rem; text-align: left;
+  font-size: 0.75rem; font-weight: 600; color: var(--gray-700);
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--gray-200);
+}
+table.offers thead th.c { text-align: center; }
+table.offers tbody td { padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--gray-100); font-size: 0.875rem; }
+table.offers tbody tr:last-child td { border-bottom: 0; }
+table.offers tbody tr:hover { background: var(--gray-50); }
+table.offers .oname { font-weight: 600; color: var(--gray-800); }
+/* OfferTable.jsx: `text-sm text-gray-600` — NOT green; "Free Item" is a
+   hardcoded stub string in the source, not derived from the offer's actual benefit. */
+table.offers .obenefit { color: var(--gray-600); font-size: 0.875rem; }
+table.offers td.c { display: flex; justify-content: center; align-items: center; }
+
+
+/* ==========================================================================
+   Responsive — two DIFFERENT breakpoints, matching the app
+     lg (1024px) — DesktopSidebar is `hidden lg:block`
+     md (768px)  — the page header Card is `hidden md:block`, and the sticky
+                   bottom bar is `md:hidden`
+   ========================================================================== */
+
+.mobile-foot { display: none; }
+
+/* sm — Main.jsx px-4, header px-6 */
+@media (min-width: 640px) {
+  .page { padding: 1rem 1rem; }
+  .page-head { flex-direction: row; align-items: center; justify-content: space-between; }
+}
+
+/* lg — Main.jsx px-6 */
+@media (min-width: 1024px) {
+  .page { padding: 1rem 1.5rem 1rem; }
+}
+
+/* below lg: the sidebar becomes an off-canvas drawer (MobileSidebar) */
+@media (max-width: 1023px) {
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform .2s ease;
+    box-shadow: var(--shadow-xl);
+    z-index: 75;
+  }
+  .sidebar.open { transform: none; }
+  .main { margin-left: 0; }
+  .topbar { padding: 0 0.75rem; }
+}
+@media (min-width: 1024px) {
+  .sidebar { transform: none !important; }
+}
+
+/* below sm: Header hides the page title (`hidden sm:flex`) */
+@media (max-width: 639px) {
+  .crumb { display: none; }
+  .who .avatar { display: none; }
+}
+
+/* below md: desktop page controls collapse into the sticky bottom bar */
+@media (max-width: 767px) {
+  .page { padding-bottom: 6.5rem; }
+  .page-head .actions { display: none; }
+  .toolbar { display: none; }
+
+  .mobile-foot {
+    display: flex;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 40;
+    background: var(--card);
+    border-top: 1px solid var(--gray-200);
+    box-shadow: 0 -2px 12px rgb(0 0 0 / .08);
+    align-items: center;
+    justify-content: space-around;
+    padding: 0.5rem 0.25rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  }
+  .mobile-foot button {
+    border: 0; background: transparent; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 0.125rem;
+    padding: 0.25rem 0.75rem; border-radius: 0.5rem; color: var(--gray-600);
+  }
+  .mobile-foot button svg { width: 1.25rem; height: 1.25rem; }
+  .mobile-foot button span { font-size: 0.625rem; font-weight: 500; }
+  .mobile-foot button.add { color: var(--green-700); }
+  .mobile-foot button.add i {
+    background: var(--emerald-600); color: #fff;
+    border-radius: 0.5rem; padding: 0.1875rem 0.75rem; display: grid; place-items: center;
+  }
+  .mobile-foot .div { width: 1px; height: 1.875rem; background: var(--gray-200); }
+
+  .frow { grid-template-columns: 1fr; gap: 0.375rem; }
+  .drawer-body { padding: 1rem; }
+  .drawer-head { padding: 1rem 3.75rem 1rem 1rem; }
+  .drawer.narrow .drawer-head { padding: 1rem 3.75rem 1rem 1rem; }
+  .drawer-foot { padding: 0.75rem 1rem; }
+  .drawer-x { top: 1rem; right: 1rem; }
+}
+
+
+/* ==========================================================================
+   StockHistoryView — date-range bar + session rows that expand to their lines
+   ========================================================================== */
+
+.hist-bar {
+  display: flex; align-items: flex-end; gap: 0.75rem; flex-wrap: wrap;
+  background: var(--card); border: 1px solid var(--slate-100);
+  border-radius: 0.75rem; padding: 0.875rem 1rem;
+}
+.hist-bar .hf { display: flex; flex-direction: column; gap: 0.25rem; }
+.hist-bar label {
+  font-size: 0.625rem; font-weight: 500; color: var(--slate-400);
+  text-transform: uppercase; letter-spacing: 0.025em;
+}
+.hist-bar .stock-field { height: 2.25rem; width: auto; min-width: 9.5rem; }
+.btn-apply {
+  height: 2.25rem; padding: 0 1.25rem;
+  border: 0; border-radius: 0.5rem;
+  background: var(--emerald-600); color: #fff;
+  font-size: 0.875rem; font-weight: 500; cursor: pointer;
+}
+.btn-apply:hover { background: var(--emerald-700); }
+.hist-bar .hcount { margin-left: auto; align-self: center; font-size: 0.75rem; color: var(--slate-400); }
+
+table.stock.hist th.c, table.stock.hist td.c { text-align: center; }
+table.stock.hist .srow { cursor: pointer; }
+table.stock.hist .cmt { color: var(--slate-500); max-width: 12.5rem; overflow: hidden; text-overflow: ellipsis; }
+table.stock.hist .cmt .dash { color: var(--slate-300); }
+table.stock.hist .chev { display: inline-flex; padding: 0.25rem; border-radius: 0.25rem; color: var(--slate-400); }
+table.stock.hist .sdetail > td { background: var(--slate-50); padding: 0.75rem 1.25rem; }
+.sdetail-box { border: 1px solid var(--slate-200); border-radius: 0.75rem; overflow: hidden; }
+table.stock.inner { font-size: 0.75rem; }
+table.stock.inner thead { background: var(--slate-100); }
+table.stock.inner thead th {
+  padding: 0.5rem 0.75rem; font-size: 0.625rem; color: var(--slate-500);
+  border-bottom: 0; letter-spacing: 0.025em;
+}
+table.stock.inner td { padding: 0.5rem 0.75rem; }
+table.stock.inner tr { border-top: 1px solid var(--slate-100); border-bottom: 0; }
+table.stock.inner tbody tr:nth-child(even) { background: var(--card); }
+table.stock.inner .art { color: var(--slate-500); }
+table.stock.inner .pn { color: var(--slate-700); font-weight: 500; }
+table.stock.inner .strong { font-weight: 600; color: var(--slate-800); }
+
+/* ==========================================================================
+   EntityTagDrawer → DirectoryDrawer + MultiTagInput — "Create customer tag"
+
+   A different component from MainDrawer/DrawerButton (see `.drawer.narrow`
+   above), so it gets its own header/footer treatment rather than reusing
+   `.drawer-head` / `.drawer-foot`:
+     header   shrink-0 border-b border-gray-100 px-6 py-6 pr-20 (no bg-gray-50);
+              h2 text-lg FONT-BOLD text-gray-900; description mt-1 text-sm text-gray-500
+     search   border p-6, label rounded-xl border bg-gray-50 px-3 py-2.5
+     list     p-4 md:p-6, grid grid-cols-1 xl:grid-cols-2 gap-3 (breaks at
+              1280px, not 1024 — DirectoryDrawer.jsx's own grid, unrelated to
+              the sidebar's lg breakpoint)
+     row      flex items-center gap-3 rounded-xl border p-3, checked
+              border-green-500 bg-green-50 — a plain list row (thumb 48px,
+              name+subtitle, checkbox); tags are NOT shown on the card, because
+              customers have no getPrice/getArticleNumber so DirectoryDrawer
+              never uses the richer ProductTagCard renderer
+     footer   border-t bg-gray-50 px-6 py-4 with a lifted shadow; "N selected"
+              on its OWN line (mb-3), then Cancel/Save in `grid gap-3
+              sm:grid-cols-2` — stacked below 640px, side-by-side at sm+
+   ========================================================================== */
+
+.dd-top { flex-shrink: 0; }
+.dd-search {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin: 0 1.5rem; padding: 0.625rem 0.75rem;
+  border: 1px solid var(--gray-200); border-radius: 0.75rem;
+  background: var(--gray-50); cursor: text;
+}
+.dd-search svg { color: var(--gray-400); flex-shrink: 0; width: 1rem; height: 1rem; }
+.dd-search input {
+  flex: 1; min-width: 0; border: 0; outline: none; background: transparent;
+  font-size: 0.875rem; color: var(--gray-800); padding: 0;
+}
+.dd-search input::placeholder { color: var(--gray-400); }
+
+/* MultiTagInput — one bordered box: chip tray (placeholder when empty), then
+   input+button, then the hint line. Sits directly below the search field,
+   inside the same p-6 border-b block in the source. */
+.mti-box {
+  margin: 1rem 1.5rem 1.5rem;
+  border: 1px solid var(--gray-200); border-radius: 0.75rem;
+  background: var(--gray-50); padding: 0.5rem;
+}
+.mti-chips { min-height: 1.75rem; display: flex; flex-wrap: wrap; gap: 0.375rem; margin-bottom: 0.5rem; }
+.mti-placeholder { padding: 0.25rem 0.25rem; font-size: 0.75rem; color: var(--gray-400); }
+.mti-chip {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  padding: 0.25rem 0.625rem; border-radius: 9999px;
+  background: var(--green-100); color: var(--green-700);
+  font-size: 0.75rem; font-weight: 600;
+}
+.mti-chip button { border: 0; background: none; color: inherit; cursor: pointer; display: inline-flex; padding: 0; }
+.mti-chip svg { width: 0.75rem; height: 0.75rem; }
+.mti-row { display: flex; gap: 0.5rem; }
+.mti-row input {
+  flex: 1; min-width: 0; padding: 0.375rem 0.625rem;
+  font-size: 0.875rem; border: 1px solid var(--gray-300); border-radius: 0.5rem;
+  background: var(--card); color: var(--gray-800); outline: none;
+}
+.mti-row input::placeholder { color: var(--gray-400); }
+.mti-add {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  padding: 0.375rem 0.75rem;
+  border: 0; border-radius: 0.5rem;
+  background: var(--green-600); color: #fff;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.mti-add svg { width: 0.875rem; height: 0.875rem; }
+.mti-add:disabled { opacity: .4; cursor: not-allowed; }
+.mti-hint { margin: 0.25rem 0 0; padding: 0 0.25rem; font-size: 0.625rem; color: var(--gray-400); }
+
+.dd-list { flex: 1; min-height: 0; overflow-y: auto; padding: 1rem; }
+@media (min-width: 768px) { .dd-list { padding: 1.5rem; } }
+.dd-list { display: grid; grid-template-columns: 1fr; gap: 0.75rem; }
+@media (min-width: 1280px) { .dd-list { grid-template-columns: 1fr 1fr; } }
+.dd-row {
+  display: flex; align-items: center; gap: 0.75rem;
+  width: 100%; text-align: left;
+  padding: 0.75rem; border: 1px solid var(--gray-200); border-radius: 0.75rem;
+  background: var(--card); cursor: pointer;
+  transition: border-color .15s, background-color .15s;
+}
+.dd-row:hover { border-color: var(--gray-300); }
+.dd-row.on { border-color: var(--green-500); background: var(--green-50); }
+.dd-thumb { width: 3rem; height: 3rem; flex-shrink: 0; border-radius: 0.5rem; background: var(--gray-100); }
+.dd-body { flex: 1; min-width: 0; }
+.dd-name { display: block; font-size: 0.875rem; font-weight: 600; color: var(--gray-800); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-sub { display: block; font-size: 0.75rem; color: var(--gray-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-box {
+  width: 1.25rem; height: 1.25rem; flex-shrink: 0;
+  border: 1px solid var(--gray-300); border-radius: 0.25rem;
+  display: grid; place-items: center; color: #fff;
+}
+.dd-row.on .dd-box { background: var(--green-600); border-color: var(--green-600); }
+.dd-empty { grid-column: 1 / -1; padding: 3rem; text-align: center; color: var(--gray-400); font-size: 0.875rem; }
+
+/* footer — a plain block (label row, then a button row), not the flex bar
+   `.drawer-foot` uses for the other drawers */
+.drawer-foot:has(.dd-foot) { display: block; box-shadow: 0 -8px 24px rgb(15 23 42 / .06); }
+.dd-foot-btns { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .dd-foot-btns { grid-template-columns: 1fr 1fr; } }
+.dd-selected { margin: 0 0 0.75rem; font-size: 0.875rem; font-weight: 500; color: var(--gray-500); }
+.btn-dd-cancel, .btn-dd-save {
+  height: 3rem; width: 100%; padding: 0 1.25rem;
+  border-radius: 0.5rem; font-size: 0.875rem; font-weight: 600; cursor: pointer;
+}
+.btn-dd-cancel { border: 1px solid #fecaca; background: var(--card); color: var(--red-500); }
+.btn-dd-cancel:hover { border-color: #fca5a5; background: #fef2f2; color: #dc2626; }
+.btn-dd-save { border: 0; background: var(--green-600); color: #fff; }
+.btn-dd-save:hover:not(:disabled) { background: var(--green-700); }
+.btn-dd-save:disabled { background: var(--gray-300); color: var(--gray-500); cursor: not-allowed; }

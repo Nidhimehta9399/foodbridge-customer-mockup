@@ -1,0 +1,205 @@
+<!doctype html>
+<!--
+  DISCOVERY SNAPSHOT — v1 (FROZEN)
+  ---------------------------------------------------------
+  Accepted discovery iteration, snapshotted per SPEC §3.1. Do not edit — the
+  live prototype continues under ../../ (discovery/index.html + screens/ +
+  seed-data/). This is a point-in-time copy for traceability and for hosting
+  a stable demo link; ratify/accept details belong in the owning addendum.
+  Rules preserved from the live wiring hub:
+  - HTML/CSS/vanilla JS only. No frameworks, no build step, no real API calls.
+  - Screens are standalone-openable and link to each other; this hub is the entry.
+  - Data comes from this folder's own seed-data/seed.json, mirrored inline in
+    screens/customers/seed.inline.js (file:// blocks fetching local JSON).
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Foodbridge Module Customer — Discovery v1 (frozen)</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --green: #1a9d5b;
+      --green-dark: #128049;
+      --green-tint: #eafaf2;
+      --ink: #1f2430;
+      --muted: #6b7280;
+      --line: #e6e8eb;
+      --bg: #f6f7f9;
+      --card: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      margin: 0; padding: 2.5rem 1.5rem 4rem; color: var(--ink); background: var(--bg);
+    }
+    .wrap { max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 1.6rem; margin: 0 0 0.6rem; }
+    h2 { font-size: 1.05rem; margin: 2.25rem 0 1rem; }
+    .lede { color: var(--muted); font-size: 0.95rem; line-height: 1.55; max-width: 700px; }
+    .note { color: var(--muted); font-size: 0.85rem; line-height: 1.6; }
+    a { color: var(--green-dark); }
+    code { background: #eef1f4; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.85em; }
+
+    .canonical-card {
+      background: var(--green-tint); border: 1.5px solid var(--green); border-radius: 14px;
+      padding: 1.5rem 1.75rem; margin-top: 1.75rem;
+    }
+    .badge {
+      display: inline-block; background: var(--green); color: #fff; font-size: 0.7rem;
+      font-weight: 700; letter-spacing: 0.03em; padding: 0.25rem 0.65rem; border-radius: 999px;
+      margin-bottom: 0.75rem; text-transform: uppercase;
+    }
+    .canonical-card h3 { margin: 0 0 0.5rem; font-size: 1.25rem; }
+    .canonical-card p { color: #33403a; font-size: 0.9rem; line-height: 1.6; margin: 0 0 1.25rem; max-width: 660px; }
+    .btn-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.6rem 1.1rem;
+      border-radius: 8px; font-size: 0.88rem; font-weight: 700; text-decoration: none;
+      border: 1.5px solid var(--green); cursor: pointer;
+    }
+    .btn-primary { background: var(--green); color: #fff; }
+    .btn-primary:hover { background: var(--green-dark); border-color: var(--green-dark); }
+    .btn-secondary { background: #fff; color: var(--green-dark); }
+    .btn-secondary:hover { background: var(--green-tint); }
+
+    .screen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; }
+    .screen-card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+      padding: 1.1rem 1.2rem; text-decoration: none; color: var(--ink); display: block;
+    }
+    .screen-card:hover { border-color: var(--green); box-shadow: 0 4px 14px rgba(26, 157, 91, 0.12); }
+    .screen-card .step-badge {
+      display: inline-block; background: #eef1f4; color: var(--muted); font-size: 0.68rem;
+      font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; margin-bottom: 0.6rem;
+    }
+    .screen-card h4 { margin: 0 0 0.4rem; font-size: 0.98rem; }
+    .screen-card p { margin: 0; font-size: 0.8rem; color: var(--muted); line-height: 1.45; }
+
+    .ref-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .ref-card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+      padding: 1rem 1.2rem; flex: 1; min-width: 250px; font-size: 0.85rem;
+    }
+    .ref-card .step-badge {
+      display: inline-block; background: #eef1f4; color: var(--muted); font-size: 0.68rem;
+      font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; margin-bottom: 0.5rem;
+    }
+
+    details { margin-top: 0.5rem; }
+    summary { cursor: pointer; font-weight: 600; font-size: 0.92rem; padding: 0.4rem 0; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.82rem; margin-top: 0.75rem; }
+    th, td { border: 1px solid var(--line); padding: 0.5rem 0.7rem; text-align: left; }
+    th { background: #fafbfc; font-size: 0.72rem; color: var(--muted); letter-spacing: 0.03em; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div style="background:#fff7ed;border:1.5px solid #fb923c;border-radius:10px;padding:0.75rem 1rem;margin-bottom:1.5rem;font-size:0.85rem;color:#7c2d12;">
+      🧊 <strong>Frozen snapshot — v1.</strong> This is a point-in-time copy for a stable demo link.
+      The live, evolving prototype lives at <code>discovery/</code> in the module repo.
+    </div>
+    <h1>Foodbridge Module Customer — Discovery Prototype</h1>
+    <p class="lede">Can a wholesaler admin find, add, edit, tag, delete and act on the customers
+    registered under their organisation — both <strong>B2B</strong> (wholesale, tax-registered,
+    catalogue-mapped) and <strong>Retail</strong> (private, campaign-linked) — from a single
+    Customer Management surface?</p>
+
+    <div class="canonical-card">
+      <span class="badge">Frozen snapshot · v1</span>
+      <h3>Customer Management — B2B &amp; Retail Customers</h3>
+      <p>HTML replica of the live storefront-admin Customer Management group, built from the app
+      source and the As-is capture. Search, tag filter chips, row selection with bulk
+      Delete / Assign&nbsp;tags / Send&nbsp;Campaign&nbsp;Link, the Add/Edit drawer (GST type,
+      opening balance, billing vs shipping address), delete confirmation, Stock and Offers
+      drawers, the &ldquo;Send Ordering Link&rdquo; and &ldquo;Create Campaign Links&rdquo;
+      modals, CSV import preview and export (tenant-gated — off by default in this seed),
+      pagination, and the mobile sticky bar. Every action mutates seed data and persists for
+      the session.</p>
+      <div class="btn-row">
+        <a class="btn btn-primary" href="screens/customers/b2b-customers.html">Open B2B Customers →</a>
+        <a class="btn btn-secondary" href="screens/customers/retail-customers.html">Open Retail Customers →</a>
+        <a class="btn btn-secondary" href="screens/customers/index.html">Module hub</a>
+      </div>
+    </div>
+
+    <h2>Screens</h2>
+    <div class="screen-grid">
+      <a class="screen-card" href="screens/customers/b2b-customers.html">
+        <span class="step-badge">Screen 01 · /customers</span>
+        <h4>B2B Customers</h4>
+        <p>Entry point. List, search, tag chips, Import/Export, bulk actions, Stock and Offers per row, Add/Edit drawer, delete confirm.</p>
+      </a>
+      <a class="screen-card" href="screens/customers/retail-customers.html">
+        <span class="step-badge">Screen 02 · /retail-customers</span>
+        <h4>Retail Customers</h4>
+        <p>Same table, private-customer variant: Send Ordering Link replaces Stock, no GST/import/tags, bulk Create Campaign Links.</p>
+      </a>
+    </div>
+    <p class="note" style="margin-top:0.85rem;">Add, Edit, Stock, Offers and the tag editor are
+    <strong>drawers</strong>; delete confirmation, campaign links and import preview are
+    <strong>modals</strong> — all over the current list. Neither screen navigates away, which is
+    why there are only two pages.</p>
+
+    <h2>Source material</h2>
+    <div class="ref-row">
+      <div class="ref-card">
+        <span class="step-badge">Not published here</span>
+        <span style="color:var(--muted)">Addendum 002 · As-is capture + annotation</span>
+        <p class="note" style="margin-top:0.4rem;">The internal discovery log (findings F1–F16, deliberate deviations, and the source screenshots) lives in the private
+        <code>exagon-ai/foodbridge-module-customer</code> repo, not in this public mockup.</p>
+      </div>
+      <div class="ref-card">
+        <span class="step-badge">Module hub</span>
+        <a href="screens/customers/index.html">Customer Management hub</a>
+        <p class="note" style="margin-top:0.4rem;">What each screen answers, the three things reproduced as-is rather than fixed, the deliberate flag deviation, and what is not built yet.</p>
+      </div>
+    </div>
+
+    <details style="margin-top: 2.25rem;">
+      <summary>Transition map (→ SSOT-1 state-machine / SSOT-5 workflow)</summary>
+      <table>
+        <thead><tr><th>From screen / state</th><th>Event</th><th>To</th></tr></thead>
+        <tbody>
+          <tr><td>Screen 01 — B2B Customers</td><td>Type in search (debounced)</td><td>Screen 01 (filtered, reset to page 1)</td></tr>
+          <tr><td>Screen 01 — B2B Customers</td><td>Select a tag chip / All</td><td>Screen 01 (filtered by tag, reset to page 1)</td></tr>
+          <tr><td>Screen 01 — B2B Customers</td><td>Prev / page number / Next</td><td>Screen 01 (same filter, different page of 20)</td></tr>
+          <tr><td>Screen 01 — B2B Customers</td><td>Row checkbox / select-all</td><td>Screen 01 (selection state changes; bulk actions become actionable)</td></tr>
+          <tr><td>Screen 01 — B2B Customers</td><td>"+ B2B Customers" or row pencil</td><td>Add/Edit drawer over the list; Save closes it and refreshes the list</td></tr>
+          <tr><td>Add/Edit drawer</td><td>Save with an invalid/empty Phone</td><td>Drawer stays open, field marked invalid, error toast</td></tr>
+          <tr><td>Add/Edit drawer</td><td>Toggle GST Type Regular ↔ Exempt</td><td>Drawer swaps the GST Number field for UDIN Number (same underlying value)</td></tr>
+          <tr><td>Add/Edit drawer</td><td>Uncheck "use billing address as shipping"</td><td>Drawer reveals the shipping address / state / PIN trio</td></tr>
+          <tr><td>Add/Edit drawer</td><td>Pick an Opening Balance type (add only)</td><td>Drawer reveals the amount field + "Clear — no opening balance"</td></tr>
+          <tr><td>Screen 01 — B2B Customers</td><td>Row trash / Bulk Action → Delete</td><td>Delete confirm modal; confirming removes the row(s) and returns to Screen 01</td></tr>
+          <tr><td>Screen 01 — B2B Customers</td><td>Bulk Action with nothing selected</td><td>Screen 01 (error toast: "Select customers first…")</td></tr>
+          <tr><td>Screen 01 — B2B Customers</td><td>Bulk Action → Assign tags</td><td>Tag drawer; Save applies tags, clears the selection, refreshes chips</td></tr>
+          <tr><td>Screen 01 — B2B Customers</td><td>Row bar-chart (Stock)</td><td>Stock drawer (Stock Count ↔ Stock History), closes back to Screen 01</td></tr>
+          <tr><td>Screen 01 — B2B Customers</td><td>Row gift (Offers)</td><td>Offers drawer, closes back to Screen 01</td></tr>
+          <tr><td>Screen 01 — B2B Customers</td><td>Import → browse file / load sample <em>(tenant-gated, off by default)</em></td><td>Import preview modal; Import commits rows and returns to Screen 01</td></tr>
+          <tr><td>Screen 01 — B2B Customers</td><td>Export / Download Sample</td><td>Screen 01 (real CSV download, no state change)</td></tr>
+          <tr><td>Screen 02 — Retail Customers</td><td>Row paper-plane (Send Ordering Link)</td><td>&ldquo;Send Ordering Link&rdquo; modal (name/phone, Send via WhatsApp), closes back to Screen 02</td></tr>
+          <tr><td>Screen 02 — Retail Customers</td><td>Bulk Action → Send Campaign</td><td>&ldquo;Create Campaign Links&rdquo; modal — select/deselect, Create Links → results step, Done</td></tr>
+          <tr><td>Screen 01 ↔ Screen 02</td><td>Sidebar: B2B Customers / Retail Customers</td><td>The other screen (the only real page navigation in this module)</td></tr>
+          <tr><td>Any screen</td><td>Sidebar item outside Customer Management</td><td>Not prototyped this iteration — shows a notice</td></tr>
+          <tr><td>Any drawer / modal</td><td>Escape, Cancel, or scrim click</td><td>Closes; the underlying list is unchanged</td></tr>
+        </tbody>
+      </table>
+    </details>
+
+    <p class="note" style="margin-top: 2rem;">Data for both screens comes from
+    <a href="seed-data/seed.json">seed-data/seed.json</a>, mirrored verbatim in
+    <a href="screens/customers/seed.inline.js">screens/customers/seed.inline.js</a> because the
+    prototype runs from <code>file://</code> and cannot fetch local JSON — edit both together.
+    It is seeded into <code>localStorage</code> so add/edit/delete/import persist while clicking
+    between screens in one browser session; reset with <code>FB.reset()</code> in the console, or
+    by clearing site data. Tenant feature flags live in the same seed under <code>appProp</code> —
+    the As-is capture is one tenant's configuration, not the whole surface.</p>
+    <p class="note">Screen scripts load in order: <code>icons.js</code> (real lucide /
+    react-icons glyphs) → <code>seed.inline.js</code> → <code>shell.js</code> (sidebar, topbar,
+    drawer / modal / menu / toast primitives) → <code>customers.js</code> (both screens).
+    The <code>_smoke/</code> jsdom boot check is a dev tool, not part of the prototype — it is not
+    included in this frozen snapshot (see the live <code>discovery/</code> tree for it).</p>
+  </div>
+</body>
+</html>

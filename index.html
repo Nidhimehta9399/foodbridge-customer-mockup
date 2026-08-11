@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Foodbridge · Customer Management — Discovery Mockup</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --green: #1a9d5b;
+    --green-dark: #128049;
+    --green-tint: #eafaf2;
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --line: #e6e8eb;
+    --bg: #f6f7f9;
+    --card: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    margin: 0; padding: 3rem 1.5rem 4rem; color: var(--ink); background: var(--bg);
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  .kicker {
+    color: var(--green-dark); font-weight: 700; font-size: 0.75rem;
+    letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.5rem;
+  }
+  h1 { font-size: 1.9rem; margin: 0 0 0.6rem; letter-spacing: -0.01em; }
+  .lede { color: var(--muted); font-size: 1rem; line-height: 1.6; max-width: 640px; margin: 0 0 2rem; }
+  .badge {
+    display: inline-block; background: var(--green); color: #fff; font-size: 0.7rem;
+    font-weight: 700; letter-spacing: 0.03em; padding: 0.25rem 0.65rem; border-radius: 999px;
+    text-transform: uppercase; margin-bottom: 1rem;
+  }
+  h2 { font-size: 1.05rem; margin: 2.5rem 0 1rem; }
+  .screen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1rem; }
+  .screen-card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 1.25rem 1.4rem; text-decoration: none; color: var(--ink); display: block;
+    transition: transform .15s, box-shadow .15s, border-color .15s;
+  }
+  .screen-card:hover { transform: translateY(-2px); border-color: var(--green); box-shadow: 0 8px 20px rgba(26,157,91,.12); }
+  .screen-card .ic { font-size: 1.5rem; margin-bottom: 0.6rem; }
+  .screen-card h3 { margin: 0 0 0.3rem; font-size: 1rem; }
+  .screen-card p { margin: 0; font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+  .screen-card .route { margin-top: 0.6rem; font-family: ui-monospace, monospace; font-size: 0.75rem; color: var(--green-dark); }
+  .note {
+    margin-top: 2.5rem; padding: 1rem 1.25rem; background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; font-size: 0.85rem; color: var(--muted); line-height: 1.7;
+  }
+  .note code { background: #eef1f4; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.85em; color: var(--ink); }
+  .note a { color: var(--green-dark); }
+  footer { margin-top: 2.5rem; font-size: 0.78rem; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="kicker">FoodBridge · Discovery mockup</div>
+    <span class="badge">Frozen · v1</span>
+    <h1>Customer Management</h1>
+    <p class="lede">A frozen, click-through HTML recreation of the live storefront-admin
+    Customer Management group — B2B Customers and Retail Customers — built pixel-for-pixel from
+    the deployed app's own source, not from screenshots alone. Every action (search, add, edit,
+    delete, bulk tag, stock count, campaign links) runs against seed data in your browser; nothing
+    here calls a real API.</p>
+
+    <h2>Open a screen</h2>
+    <div class="screen-grid">
+      <a class="screen-card" href="v1/screens/customers/b2b-customers.html">
+        <div class="ic">🏪</div>
+        <h3>B2B Customers</h3>
+        <p>Wholesale customers: catalogue chips, tags, Stock and Offers per row, bulk delete and tagging.</p>
+        <div class="route">/customers</div>
+      </a>
+      <a class="screen-card" href="v1/screens/customers/retail-customers.html">
+        <div class="ic">🧾</div>
+        <h3>Retail Customers</h3>
+        <p>Private customers: Send Ordering Link per row, bulk Create Campaign Links.</p>
+        <div class="route">/retail-customers</div>
+      </a>
+      <a class="screen-card" href="v1/screens/customers/index.html">
+        <div class="ic">🗂️</div>
+        <h3>Module hub</h3>
+        <p>What each screen answers, and what's reproduced as-is rather than silently fixed.</p>
+        <div class="route">module overview</div>
+      </a>
+      <a class="screen-card" href="v1/index.html">
+        <div class="ic">🧊</div>
+        <h3>Frozen snapshot hub</h3>
+        <p>The full wiring hub for this version — transition map, source material, seed notes.</p>
+        <div class="route">v1 hub</div>
+      </a>
+    </div>
+
+    <div class="note">
+      This is version <b>v1</b>, frozen for a stable demo link — it will not change under this URL.
+      Source: <code>exagon-ai/foodbridge-module-customer</code> (private org repo);
+      reference app: <code>exagon-ai/storefront-frontend</code>. Data is seeded and reset per
+      browser session — nothing you do here persists anywhere but your own <code>localStorage</code>.
+    </div>
+
+    <footer>Static HTML/CSS/JS, no build step, no backend. Hosted on GitHub Pages.</footer>
+  </div>
+</body>
+</html>

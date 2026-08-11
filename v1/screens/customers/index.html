@@ -1,0 +1,116 @@
+<!doctype html>
+<!--
+  MODULE HUB — Foodbridge Module Customer — "Customer Management"
+  Screen cards + what each screen answers. The wiring hub with the full
+  transition map is ../../index.html.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Customer Management — Module Hub</title>
+  <!-- No webfont: tailwind.config.js sets fontFamily.sans to system-ui, so the
+       deployed app never renders the Inter it preloads. styles.css matches. -->
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .hero { max-width: 960px; margin: 0 auto; padding: 40px 20px 60px; }
+    .hero .kicker { color: var(--green-700); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: 12px; }
+    .hero h1 { font-size: 30px; margin: 8px 0 6px; letter-spacing: -.02em; }
+    .hero p.lead { color: var(--muted); font-size: 15px; max-width: 680px; margin: 0 0 6px; line-height: 1.65; }
+    .hero p.lead code { background: #f1f5f9; padding: 2px 6px; border-radius: 5px; font-size: 12.5px; }
+    .ver { display:inline-block; margin-top:12px; padding:4px 12px; border-radius:999px; background:var(--green-50); color:var(--green-700); font-weight:700; font-size:12px; }
+    .screen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 28px; }
+    .screen-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; box-shadow: var(--shadow-sm); transition: transform .15s, box-shadow .15s, border-color .15s; display:block; }
+    .screen-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--green-200); }
+    .screen-card .ic { width: 46px; height: 46px; border-radius: 12px; background: var(--green-50); display: grid; place-items: center; font-size: 24px; margin-bottom: 14px; }
+    .screen-card h3 { margin: 0 0 4px; font-size: 16px; }
+    .screen-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .screen-card .route { margin-top: 12px; font-family: ui-monospace, monospace; font-size: 12px; color: var(--green-700); }
+    h2.sec { font-size: 14px; margin: 34px 0 10px; }
+    .asis { border: 1px solid var(--line); border-left: 3px solid var(--emerald-500); background: var(--card); border-radius: 10px; padding: 16px 18px; font-size: 13px; color: var(--gray-700); line-height: 1.65; }
+    .asis b { color: var(--gray-800); }
+    .meta { margin-top: 30px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 18px; line-height: 1.75; }
+    .meta code { background:#f1f5f9; padding:2px 6px; border-radius:5px; }
+    .meta a { color: var(--green-700); text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <div class="kicker">FoodBridge · Discovery</div>
+    <h1>Customer Management</h1>
+    <p class="lead">Recreation of the live admin Customer Management group at
+    <code>b2bgreens.com/platform/customers</code> (tenant <b>QA store</b>, user
+    <b>Mahesh · Admin</b>) — the baseline this module iterates from. Built from the real source
+    of <code>exagon-ai/storefront-frontend</code>, not from screenshots: the same field names,
+    the same derivations, the same copy strings from <code>utils/translation/en.json</code>, and
+    the same tenant feature flags. Direction and provenance in
+    <code>instructions/addendum-002-customer-management-html-replica.md</code>.</p>
+    <span class="ver">Version 1 · html-replica · pending review</span>
+
+    <h2 class="sec">Screens — the question each one answers</h2>
+    <div class="screen-grid">
+      <a class="screen-card" href="b2b-customers.html">
+        <div class="ic">🏪</div>
+        <h3>B2B Customers</h3>
+        <p>Which businesses buy from us, on which catalogue, and what can I do to them in bulk?
+        Search, tag chips, Import/Export, Stock and Offers per row, Add/Edit drawer, delete confirm.</p>
+        <div class="route">/customers</div>
+      </a>
+      <a class="screen-card" href="retail-customers.html">
+        <div class="ic">🧾</div>
+        <h3>Retail Customers</h3>
+        <p>Which individuals do we sell to, and how do I get a shop link into their hands?
+        Same table, private-customer variant: Send Campaign Link replaces Stock, no GST/import/tags.</p>
+        <div class="route">/retail-customers</div>
+      </a>
+    </div>
+
+    <h2 class="sec">Reproduced as-is, not "fixed"</h2>
+    <div class="asis">
+      <b>No mobile card view, and half the table is unreachable on a phone.</b> Unlike the
+      Products module, the Customers table renders identically at every width. Worse, windmill's
+      <code>&lt;Table&gt;</code> is <code>w-full whitespace-nowrap</code> inside an
+      <code>overflow-hidden</code> container — so below ~900px the live app <em>clips</em> Catalog
+      and Actions: no scroll, no wrap, no cards. Carried as an open question.<br><br>
+      <b>Tags are filter-only.</b> Four tagged customers produce two chips with counts, but no
+      row displays its own tag anywhere in the table.<br><br>
+      <b>The Address column is mostly dashes.</b> Address is derived from
+      <code>[adress1, state.name, postnr]</code> and collapses to <code>-</code> when every part
+      is empty — which is the majority case in the As-is capture.<br><br>
+      <b>The sidebar is tenant data.</b> Names, order, grouping and even the lucide icon
+      <em>names</em> come from <code>globalSetting.storefrontMenus</code>. Two captures of this
+      same tenant already differ — the menu here follows the later one.
+    </div>
+
+    <h2 class="sec">Deliberate deviations</h2>
+    <div class="asis">
+      <b>All B2B feature flags are on</b> in <code>seed.inline.js → appProp</code> so every flow
+      is reachable. The As-is capture came from a tenant with
+      <code>bulkImportEnabled: false</code>, which is why Import / Export / Sample were not
+      visible there. Flip the flags to reproduce any given tenant's exact surface.<br><br>
+      <b>Selected rows are green, and selection is scoped to its page</b> — changing page, search
+      or tag filter clears it. The live table marks nothing and can retain ids from a page you
+      have left.<br><br>
+      <b>The mobile table scrolls</b> rather than clipping, purely so this prototype stays
+      reviewable on a phone. Everything else about the mobile table is as-is.
+    </div>
+
+    <h2 class="sec">Not built this iteration</h2>
+    <div class="asis">
+      Catalog-to-Customer Mapping and Credit Wallet Mapping tabs (off in the captured tenant, and
+      the credit tab is hard-disabled in the source), the Google Sheet export/sync panel, and the
+      Customer Locations / Customer Order routes. Sidebar entries outside Customer Management
+      raise a prototype notice.
+    </div>
+
+    <div class="meta">
+      Data from <a href="../../seed-data/seed.json">seed-data/seed.json</a>, mirrored verbatim in
+      <code>seed.inline.js</code> because <code>file://</code> blocks fetching local JSON.
+      Edits persist in <code>localStorage</code> for the session — run <code>FB.reset()</code>
+      in the console to restore the seed.<br>
+      Wiring hub and full transition map: <a href="../../index.html">discovery/index.html</a>.
+      Boot check: <code>screens/customers/_smoke/</code>.
+    </div>
+  </div>
+</body>
+</html>
