@@ -205,12 +205,18 @@
     }).join("");
     return `<div class="scrim" id="scrim"></div>
       <aside class="sidebar" id="sidebar"><div class="brand"><span class="logo">${I.bag}</span><span class="name">Murli</span></div><nav class="nav">${nav}</nav></aside>
-      <div class="main"><div class="topbar"><span class="topbar-brand">${I.bag}</span><div class="page-title">${esc(title)}</div><div class="spacer"></div><div class="user"><div class="who"><b>Mahesh</b><br><small>Admin</small></div><div class="av">${I.user}</div></div></div><div class="content" id="content"></div></div>
+      <div class="main"><div class="topbar"><button class="hamburger" id="hamburger" title="Collapse sidebar">${I.menu}</button><span class="topbar-brand">${I.bag}</span><div class="page-title">${esc(title)}</div><div class="spacer"></div><div class="user"><div class="who"><b>Mahesh</b><br><small>Admin</small></div><div class="av">${I.user}</div></div></div><div class="content" id="content"></div></div>
       <div class="toast" id="toast"></div>`;
   }
   function wireShell() {
     const sb = document.getElementById("sidebar"), scrim = document.getElementById("scrim");
-    document.getElementById("hamburger")?.addEventListener("click", () => { sb.classList.add("open"); scrim.classList.add("show"); });
+    document.getElementById("hamburger")?.addEventListener("click", () => {
+      // Embedded in the platform, the module's own sidebar is clipped away, so the
+      // hamburger drives the PLATFORM's sidebar collapse (postMessage). Standalone,
+      // it opens this module's own off-canvas sidebar.
+      if (EMBEDDED) { try { window.parent.postMessage({ source: "fb-module", type: "toggle-sidebar" }, "*"); } catch (e) {} }
+      else { sb.classList.add("open"); scrim.classList.add("show"); }
+    });
     scrim?.addEventListener("click", () => { sb.classList.remove("open"); scrim.classList.remove("show"); });
     sb.querySelectorAll("[data-toggle]").forEach((row) => row.addEventListener("click", () => { const sub = row.nextElementSibling; if (!sub || !sub.classList.contains("nav-sub")) return; const open = row.classList.toggle("open"); sub.style.display = open ? "" : "none"; }));
     sb.querySelectorAll("[data-demo]").forEach((el) => el.addEventListener("click", () => toast(`${el.dataset.demo} lives in another module — this prototype covers Catalog`)));
