@@ -145,7 +145,7 @@
 /* Individual mode */
 .ind-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .ind-search { flex: 1; min-width: 200px; }
-.ind-table-wrap { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.ind-table-wrap { border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .ind-table, .price-table { min-width: 640px; }
 .ind-table thead th, .price-table thead th { background: #fafbfc; }
 .chip-cat2 { display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: 12.5px; background: #eef2f7; color: var(--ink-soft); font-weight: 600; }
