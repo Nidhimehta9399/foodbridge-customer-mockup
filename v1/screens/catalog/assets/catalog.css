@@ -47,8 +47,9 @@
    ========================================================================== */
 .cat-drawer-scrim { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 90; opacity: 0; transition: opacity .2s; }
 .cat-drawer-scrim.show { opacity: 1; }
-.cat-drawer { position: fixed; top: 0; right: 0; bottom: 0; left: var(--sidebar-w); background: var(--card); z-index: 95; display: flex; flex-direction: column; box-shadow: -8px 0 30px rgba(15,23,42,.14); opacity: 0; transform: translateY(10px); transition: opacity .22s, transform .22s; }
-.cat-drawer.open { opacity: 1; transform: none; }
+/* Slides in from the right like the product module's Add/Edit drawer. */
+.cat-drawer { position: fixed; top: 0; right: 0; bottom: 0; left: var(--sidebar-w); background: var(--card); z-index: 95; display: flex; flex-direction: column; box-shadow: -8px 0 30px rgba(15,23,42,.18); transform: translateX(100%); transition: transform .28s cubic-bezier(.22,1,.36,1); }
+.cat-drawer.open { transform: translateX(0); }
 .cd-head { display: flex; align-items: flex-start; gap: 12px; padding: 20px 28px 16px; border-bottom: 1px solid var(--line); }
 .cd-title h3 { margin: 0; font-size: 24px; font-weight: 800; color: #111827; letter-spacing: -.01em; }
 .cd-title p { margin: 4px 0 0; font-size: 13.5px; color: var(--muted); }

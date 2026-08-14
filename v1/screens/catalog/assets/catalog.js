@@ -334,7 +334,10 @@
       <div class="cd-body" id="cdBody"></div>
       <div class="cd-foot" id="cdFoot"></div>`;
     document.body.appendChild(scrim); document.body.appendChild(panel); setOverlay(true);
-    requestAnimationFrame(() => { scrim.classList.add("show"); panel.classList.add("open"); });
+    // Trigger the slide-in. rAF for a smooth first frame, plus a timeout fallback
+    // because rAF can be throttled inside a backgrounded/embedded iframe.
+    const openNow = () => { scrim.classList.add("show"); panel.classList.add("open"); };
+    requestAnimationFrame(openNow); setTimeout(openNow, 30);
     let done = false;
     const close = () => { if (done) return; done = true; setOverlay(false); scrim.classList.remove("show"); panel.classList.remove("open"); setTimeout(() => { scrim.remove(); panel.remove(); }, 260); };
     panel.querySelector(".cd-x").addEventListener("click", close);
