@@ -200,54 +200,76 @@
     { id: "r12", name: "Ravi Verma", phone: "9312778866", supplyChainType: "PRIVATE", type: TYPE.default, createdAt: "2026-08-08" },
   ].map(customer);
 
-  /* ---- Per-customer stock counts, backing the Stock drawer -------------- */
-  const stockCounts = {
-    c01: [
-      { product: "Amul Taaza 500ml", unit: "Crate", counted: 12, countedAt: "2026-08-09" },
-      { product: "Britannia Bread 400g", unit: "Packet", counted: 30, countedAt: "2026-08-09" },
-    ],
-    c05: [{ product: "Tata Salt 1kg", unit: "Box", counted: 8, countedAt: "2026-08-06" }],
-    c11: [
-      { product: "Parle-G 800g", unit: "Box", counted: 15, countedAt: "2026-08-07" },
-      { product: "Bisleri 1L", unit: "Crate", counted: 40, countedAt: "2026-08-07" },
-    ],
-  };
-
-  /* ---- Stock counting SESSIONS, backing the Stock History view ----------
-     One record per count; each expands to its per-product lines. */
-  const stockSessions = {
+  /* ---- Stock AUDITS, backing the Stock Audit & Health page ---------------
+     One record per distributor visit. `lines` are keyed by productId only
+     (name/artNo/category/unit/emoji are looked up from `products` at render
+     time, so they can't drift); `system` is the stock the audit itself saw,
+     frozen at capture time. `condition` is the shelf finding for that line —
+     independent of the counted number, because "0 counted" and "shelf empty,
+     nothing to sell" (out_of_stock) are the same fact but "expired stock still
+     sitting on the shelf" is a different, non-zero-count problem entirely.
+     `followUp` records whether the visit needs a return trip. */
+  const stockAudits = {
     c01: [
       {
-        at: "10 Aug 2026, 15:41",
-        comment: "",
-        lines: [{ artNo: "34567", product: "250ML PET", system: 2, counted: 2 }],
+        id: "aud-c01-1",
+        at: "2026-08-10T15:41:00",
+        auditor: "Mahesh",
+        notes: "",
+        lines: [{ productId: "p01", system: 2, counted: 2, condition: "ok", shelfAvailable: true }],
+        followUp: { required: false, note: "", at: "" },
       },
     ],
     c02: [
       {
-        at: "10 Aug 2026, 15:41",
-        comment: "",
-        lines: [{ artNo: "a102", product: "Mini Bread 100gm", system: 2, counted: 1 }],
+        id: "aud-c02-1",
+        at: "2026-08-10T15:41:00",
+        auditor: "Mahesh",
+        notes: "",
+        lines: [{ productId: "p06", system: 2, counted: 1, condition: "ok", shelfAvailable: true }],
+        followUp: { required: false, note: "", at: "" },
       },
     ],
     c05: [
       {
-        at: "06 Aug 2026, 11:02",
-        comment: "Monthly audit — aisle 3 & 4",
+        id: "aud-c05-1",
+        at: "2026-08-06T11:02:00",
+        auditor: "Mahesh",
+        notes: "Monthly audit — aisle 3 & 4",
         lines: [
-          { artNo: "g301", product: "Tata Salt 1kg", system: 8, counted: 8 },
-          { artNo: "b401", product: "Parle-G 800g", system: 15, counted: 13 },
+          { productId: "p11", system: 8, counted: 8, condition: "ok", shelfAvailable: true },
+          { productId: "p12", system: 15, counted: 13, condition: "ok", shelfAvailable: true },
         ],
+        followUp: { required: false, note: "", at: "" },
       },
     ],
     c11: [
       {
-        at: "07 Aug 2026, 09:20",
-        comment: "Opening count",
+        id: "aud-c11-1",
+        at: "2026-08-07T09:20:00",
+        auditor: "Mahesh",
+        notes: "Opening count",
         lines: [
-          { artNo: "b401", product: "Parle-G 800g", system: 15, counted: 15 },
-          { artNo: "34567", product: "250ML PET", system: 2, counted: 4 },
+          { productId: "p12", system: 15, counted: 15, condition: "ok", shelfAvailable: true },
+          { productId: "p01", system: 2, counted: 0, condition: "out_of_stock", shelfAvailable: false },
         ],
+        followUp: {
+          required: true,
+          note: "Restock 250ML PET before next visit — shelf empty.",
+          at: "2026-08-07T09:25:00",
+        },
+      },
+      {
+        id: "aud-c11-2",
+        at: "2026-08-14T10:05:00",
+        auditor: "Mahesh",
+        notes: "Follow-up visit",
+        lines: [
+          { productId: "p12", system: 15, counted: 10, condition: "ok", shelfAvailable: true },
+          { productId: "p01", system: 2, counted: 1, condition: "near_expiry", shelfAvailable: true },
+          { productId: "p04", system: 0, counted: 3, condition: "damaged", shelfAvailable: true },
+        ],
+        followUp: { required: false, note: "", at: "" },
       },
     ],
   };
@@ -316,8 +338,7 @@
     states,
     b2b,
     retail,
-    stockCounts,
-    stockSessions,
+    stockAudits,
     offers,
     products,
     appProp,

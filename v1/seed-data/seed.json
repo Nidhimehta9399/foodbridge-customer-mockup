@@ -1060,41 +1060,72 @@
       }
     ]
   },
-  "stockCounts": {
+  "_stockAuditsNote": "One record per distributor visit, backing the Stock Audit & Health page. Lines are keyed by productId only (name/artNo/category/unit/emoji come from `products`); `system` freezes the stock the audit saw at capture time; `condition` is the shelf finding, independent of the counted number.",
+  "stockAudits": {
     "c01": [
       {
-        "product": "Amul Taaza 500ml",
-        "unit": "Crate",
-        "counted": 12,
-        "countedAt": "2026-08-09"
-      },
+        "id": "aud-c01-1",
+        "at": "2026-08-10T15:41:00",
+        "auditor": "Mahesh",
+        "notes": "",
+        "lines": [
+          { "productId": "p01", "system": 2, "counted": 2, "condition": "ok", "shelfAvailable": true }
+        ],
+        "followUp": { "required": false, "note": "", "at": "" }
+      }
+    ],
+    "c02": [
       {
-        "product": "Britannia Bread 400g",
-        "unit": "Packet",
-        "counted": 30,
-        "countedAt": "2026-08-09"
+        "id": "aud-c02-1",
+        "at": "2026-08-10T15:41:00",
+        "auditor": "Mahesh",
+        "notes": "",
+        "lines": [
+          { "productId": "p06", "system": 2, "counted": 1, "condition": "ok", "shelfAvailable": true }
+        ],
+        "followUp": { "required": false, "note": "", "at": "" }
       }
     ],
     "c05": [
       {
-        "product": "Tata Salt 1kg",
-        "unit": "Box",
-        "counted": 8,
-        "countedAt": "2026-08-06"
+        "id": "aud-c05-1",
+        "at": "2026-08-06T11:02:00",
+        "auditor": "Mahesh",
+        "notes": "Monthly audit — aisle 3 & 4",
+        "lines": [
+          { "productId": "p11", "system": 8, "counted": 8, "condition": "ok", "shelfAvailable": true },
+          { "productId": "p12", "system": 15, "counted": 13, "condition": "ok", "shelfAvailable": true }
+        ],
+        "followUp": { "required": false, "note": "", "at": "" }
       }
     ],
     "c11": [
       {
-        "product": "Parle-G 800g",
-        "unit": "Box",
-        "counted": 15,
-        "countedAt": "2026-08-07"
+        "id": "aud-c11-1",
+        "at": "2026-08-07T09:20:00",
+        "auditor": "Mahesh",
+        "notes": "Opening count",
+        "lines": [
+          { "productId": "p12", "system": 15, "counted": 15, "condition": "ok", "shelfAvailable": true },
+          { "productId": "p01", "system": 2, "counted": 0, "condition": "out_of_stock", "shelfAvailable": false }
+        ],
+        "followUp": {
+          "required": true,
+          "note": "Restock 250ML PET before next visit — shelf empty.",
+          "at": "2026-08-07T09:25:00"
+        }
       },
       {
-        "product": "Bisleri 1L",
-        "unit": "Crate",
-        "counted": 40,
-        "countedAt": "2026-08-07"
+        "id": "aud-c11-2",
+        "at": "2026-08-14T10:05:00",
+        "auditor": "Mahesh",
+        "notes": "Follow-up visit",
+        "lines": [
+          { "productId": "p12", "system": 15, "counted": 10, "condition": "ok", "shelfAvailable": true },
+          { "productId": "p01", "system": 2, "counted": 1, "condition": "near_expiry", "shelfAvailable": true },
+          { "productId": "p04", "system": 0, "counted": 3, "condition": "damaged", "shelfAvailable": true }
+        ],
+        "followUp": { "required": false, "note": "", "at": "" }
       }
     ]
   },
