@@ -189,7 +189,7 @@
   const SIDEBAR = [
     { label: "Dashboard", icon: I.dash },
     { label: "Product Master", icon: I.box, group: true, children: [{ label: "Finished Goods", href: "all-products.html" }, { label: "Product Categories", href: "categories.html" }, { label: "Raw Materials", href: "raw-materials.html" }, { label: "Image Gallery", href: "image-directory.html" }] },
-    { label: "Customer Management", icon: I.users, group: true, children: [{ label: "B2B Customers" }, { label: "Retail Customers" }, { label: "Catalog", key: "catalog", href: "catalog.html" }] },
+    { label: "Customer Management", icon: I.users, group: true, children: [{ label: "B2B Customers" }, { label: "Retail Customers" }, { label: "Catalog", key: "catalog", href: "catalog.html" }, { label: "Stock Audit & Health" }] },
     { label: "Sales Orders", icon: I.cart },
     { label: "Distribution & Logistics", icon: I.truck, group: true, children: [{ label: "Route Planning" }, { label: "Delivery Management" }, { label: "Logistic Returns" }] },
     { label: "Production", icon: I.inv, group: true, children: [{ label: "Batch Management" }, { label: "Semifinished Products" }, { label: "Configure Recipe" }] },

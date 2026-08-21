@@ -1,13 +1,21 @@
 /* ==========================================================================
-   Stock Audit & Health — visual language borrowed from the platform's
-   Delivery Management module (teal header, colour tiles, status-tag pills,
-   chip filters, card lists, bottom-sheet confirmations) so a distributor rep
+   Stock Audit & Health — content styling for a screen that mounts inside the
+   SAME shared shell (sidebar/topbar, from shell.js's mountShell) as B2B
+   Customers and Retail Customers — that's what makes it a real listed page
+   under Customer Management rather than a one-off tool. See stock-audit.html
+   for the route shape (list vs ?customer= detail).
+
+   Visual language for the detail view (hero card, colour tiles, status-tag
+   pills, chip filters, card lists, bottom-sheet confirmations) is borrowed
+   from the platform's Delivery Management module, so a distributor rep
    moving between "start my route" and "audit this customer" sees one family
-   of screens, not two unrelated tools.
+   of screens. The list view instead reuses styles.css's own table chrome
+   (.head-card/.searchbar/.table-wrap/table.grid) so it reads as a sibling
+   of the B2B Customers table, not a mismatched import.
 
    Deliberately NOT a phone-frame like Delivery Management's own screens —
-   this page is opened from an admin table on a desktop/tablet, so it is a
-   normal responsive page wearing that palette, not a simulated device.
+   this page lives in a sidebar-driven admin app on desktop/tablet, so it
+   wears that palette on a normal responsive layout, not a simulated device.
    Font stays system-ui (no Inter) to match the rest of this module's
    deliberate no-webfont stance; see styles.css's header comment.
    ========================================================================== */
@@ -20,36 +28,35 @@
   --line: #e5e7eb; --line-soft: #eef2f5; --bg: #f1f5f7; --card: #fff;
   --amber-bg: #fef3c7; --amber-tx: #b45309;
   --slate-50: #f8fafc; --slate-100: #f1f5f9;
-  font-family: system-ui, sans-serif, Arial, Helvetica;
-  color: var(--ink);
-  background: var(--bg);
-  min-height: 100vh;
 }
-.sah * { box-sizing: border-box; }
-.sah button { font-family: inherit; cursor: pointer; }
-.sah input, .sah select, .sah textarea { font-family: inherit; }
+/* Scoped to #page's own content, NOT the whole #app — #app also contains the
+   shared sidebar/topbar, which keep styles.css's own look. */
+#page.page { font-family: system-ui, sans-serif, Arial, Helvetica; }
+#page button, #page input, #page select, #page textarea { font-family: inherit; cursor: pointer; box-sizing: border-box; }
+#page input, #page select, #page textarea { cursor: text; }
 
 .sah-wrap { max-width: 960px; margin: 0 auto; padding-bottom: 96px; }
+.r { text-align: right; }
+.btn-open { color: var(--teal); font-weight: 700; font-size: 13px; text-decoration: none; white-space: nowrap; }
+.btn-open:hover { text-decoration: underline; }
 
-/* ── Topbar ───────────────────────────────────────────────────────────────── */
-.sah-topbar { background: var(--teal); color: #fff; padding: 18px 20px 22px; }
-.sah-topbar .back { color: #fff; opacity: .9; font-size: 13.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: none; border: none; padding: 0; }
-.sah-topbar .back:hover { opacity: 1; }
-.sah-topbar .row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
-.sah-topbar .eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .8; margin: 0 0 4px; }
-.sah-topbar h1 { margin: 0; font-size: 23px; font-weight: 800; }
-.sah-topbar .sub { margin: 5px 0 0; font-size: 13px; opacity: .85; }
+/* ── Hero card (customer identity + CTA) ─────────────────────────────────── */
+.sah-hero { background: var(--teal); color: #fff; padding: 18px 20px 22px; border-radius: 16px; margin-bottom: 18px; }
+.sah-hero .back { color: #fff; opacity: .9; font-size: 13.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; background: none; border: none; padding: 0; }
+.sah-hero .back:hover { opacity: 1; }
+.sah-hero .row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
+.sah-hero .eyebrow { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .8; margin: 0 0 4px; }
+.sah-hero h1 { margin: 0; font-size: 23px; font-weight: 800; }
+.sah-hero .sub { margin: 5px 0 0; font-size: 13px; opacity: .85; }
 .sah-cta {
   flex-shrink: 0; height: 42px; padding: 0 18px; border-radius: 10px;
   background: #fff; color: var(--teal); font-weight: 700; font-size: 13.5px;
   display: inline-flex; align-items: center; gap: 8px; border: none;
 }
 .sah-cta:hover { background: var(--teal-l); }
-.sah-cta.ghost { background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,.5); }
-.sah-cta.ghost:hover { background: rgba(255,255,255,.12); }
 
 /* ── Stat tiles ───────────────────────────────────────────────────────────── */
-.sah-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; padding: 16px 20px 0; }
+.sah-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 6px; }
 .sah-tile { border-radius: 14px; padding: 16px; color: #fff; }
 .sah-tile .n { font-size: 24px; font-weight: 800; }
 .sah-tile .l { font-size: 12px; font-weight: 600; opacity: .95; margin-top: 3px; }
@@ -58,7 +65,7 @@
 .sah-tile.orange { background: var(--orange); }
 .sah-tile.red { background: var(--red); }
 
-.sah-body { padding: 20px; }
+.sah-body { padding: 20px 0; }
 .sec-label { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted-2); margin: 4px 0 10px; }
 .sec-label + .sec-label { margin-top: 26px; }
 
@@ -231,17 +238,11 @@
 .sheet-btn.primary { background: var(--teal); color: #fff; }
 .sheet-btn.ghost { background: #fff; border: 1.5px solid var(--line); color: var(--ink); }
 
-/* ── Toast ────────────────────────────────────────────────────────────────── */
-.sah-toast {
-  position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(12px);
-  max-width: 90%; background: #0f172a; color: #fff; padding: 11px 18px; border-radius: 12px;
-  font-size: 13.5px; font-weight: 600; box-shadow: 0 8px 24px rgba(15,23,42,.4);
-  opacity: 0; pointer-events: none; z-index: 70; transition: opacity .2s, transform .2s; text-align: center;
-}
-.sah-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* Toasts reuse FB_SHELL's own .toasts/.toast (styles.css) — same component
+   every other screen in this module uses, so no local toast styling here. */
 
 @media (max-width: 560px) {
-  .sah-topbar h1 { font-size: 20px; }
+  .sah-hero h1 { font-size: 20px; }
   .sah-tiles { grid-template-columns: repeat(2, 1fr); }
   .cap-grid { grid-template-columns: 1fr; }
 }

@@ -276,7 +276,7 @@
   function rowActionsHTML(cfg, c) {
     return `
       <div class="row-actions">
-        ${cfg.showStock ? `<a class="icon-btn stock" href="stock-audit.html?customer=${encodeURIComponent(c._id)}" target="_blank" rel="noopener" data-tip="Stock Audit &amp; Health">${I.BarChart2}</a>` : ""}
+        ${cfg.showStock ? `<a class="icon-btn stock" href="stock-audit.html?customer=${encodeURIComponent(c._id)}" data-tip="Stock Audit &amp; Health">${I.BarChart2}</a>` : ""}
         ${cfg.showOffer ? `<button class="icon-btn offer" data-act="offer" data-id="${c._id}" data-tip="Offers">${I.FiGift}</button>` : ""}
         ${cfg.showSendCampaign ? `<button class="icon-btn send" data-act="campaign" data-id="${c._id}" data-tip="Send Campaign Link">${I.FiSend}</button>` : ""}
         <button class="icon-btn edit" data-act="edit" data-id="${c._id}" data-tip="Edit">${I.FiEdit}</button>

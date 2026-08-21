@@ -1,20 +1,24 @@
 /* ==========================================================================
    DISCOVERY — Foodbridge Module Customer — Stock Audit & Health
 
-   Self-contained: does not depend on shell.js (that file's openDrawer/
-   mountShell/sidebar are admin-list chrome this page never mounts inside —
-   see stock-audit.html's header for why). Loads only seed.inline.js, same
-   as every other screen in this module.
+   Mounts through shell.js's mountShell exactly like customers.js does — same
+   sidebar, same topbar, same drawer/toast primitives (window.FB_SHELL) — so
+   this is a real peer of B2B Customers / Retail Customers in the Customer
+   Management group, not a one-off tool bolted on the side.
 
-   Two views, one page, in-memory state (VIEW/HIST/CAP below) — no router
-   needed for two screens, unlike Delivery Management's multi-section app:
+   One route (stock-audit.html), two views, switched by ?customer=<id>:
 
-     home     Customer header, health tiles, "Attention Needed" (this
-              customer's latest audit's flagged lines), and searchable/
-              filterable Audit History with an inline follow-up action.
-     capture  The New Audit flow: per-product counted-vs-system, a
-              condition flag (OK/Damaged/Expired/Near Expiry/Out of Stock),
-              and a shelf-availability toggle, saved as one history entry.
+     list     Every B2B customer with a stock-health summary (last audit,
+              open variances, follow-up flag) — the table chrome
+              b2b-customers.html uses, so it reads as a sibling screen.
+              This is what the sidebar link opens.
+     detail   That customer's health tiles, "Attention Needed" (the latest
+              audit's flagged lines), searchable/filterable Audit History
+              with an inline follow-up action, and the New Audit capture
+              flow (VIEW = 'home' | 'capture' below). Visual language here
+              is borrowed from Delivery Management (teal hero card, colour
+              tiles, status-tag pills, card lists, bottom-sheet
+              confirmation) — see stock-audit.css's header.
 
    Persistence: customers.js's Store key (fb-discovery-customers-v1) is read
    here too, so a customer renamed/edited in the admin list shows correctly;
@@ -26,24 +30,10 @@
   "use strict";
 
   const SEED = window.SEED;
+  const I = window.FB_ICONS;
+  const { $, esc, titleCase, debounce, toast, mountShell } = window.FB_SHELL;
 
-  /* ----------------------------------------------------------------- utils */
-
-  const $ = (sel, root) => (root || document).querySelector(sel);
-  const esc = (s) =>
-    String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]),
-    );
-  const titleCase = (s) =>
-    String(s || "").toLowerCase().replace(/\b([a-z])/g, (m) => m.toUpperCase());
   const nameOf = (c) => (c && (typeof c.name === "object" ? c.name?.en : c.name)) || "";
-  const debounce = (fn, ms) => {
-    let t;
-    return function (...a) {
-      clearTimeout(t);
-      t = setTimeout(() => fn.apply(this, a), ms);
-    };
-  };
   const clone = (v) => JSON.parse(JSON.stringify(v));
 
   function fmtDate(iso) {
@@ -57,30 +47,14 @@
     );
   }
 
-  /* ---------------------------------------------------------------- toast */
-
-  function toast(msg) {
-    const host = document.getElementById("app");
-    if (!host) return;
-    let t = host.querySelector(".sah-toast");
-    if (!t) {
-      t = document.createElement("div");
-      t.className = "sah-toast";
-      host.appendChild(t);
-    }
-    t.textContent = msg;
-    requestAnimationFrame(() => t.classList.add("show"));
-    clearTimeout(toast._t);
-    toast._t = setTimeout(() => t.classList.remove("show"), 2400);
-  }
-
   /* --------------------------------------------------------- bottom sheet */
 
-  // actions = [{ label, cls: 'primary'|'ghost', onClick }] — mirrors
-  // Delivery Management's DM.sheet, the confirmation pattern this page borrows.
+  // actions = [{ label, cls: 'primary'|'ghost', onClick }] — mirrors Delivery
+  // Management's DM.sheet, the confirmation pattern this page borrows.
+  // FB_SHELL has no bottom-sheet primitive (only drawer/modal/menu), so this
+  // stays local to the page that actually uses it.
   function sheet({ eyebrow, title, sub, actions }) {
     document.querySelectorAll(".sah-sheet-scrim").forEach((n) => n.remove());
-    const host = document.getElementById("app");
     const scrim = document.createElement("div");
     scrim.className = "sah-sheet-scrim";
     scrim.innerHTML = `<div class="sah-sheet"><div class="grip"></div>
@@ -91,7 +65,7 @@
         .map((a, i) => `<button class="sheet-btn ${a.cls || "ghost"}" data-a="${i}">${esc(a.label)}</button>`)
         .join("")}</div>
     </div>`;
-    host.appendChild(scrim);
+    document.body.appendChild(scrim);
     requestAnimationFrame(() => scrim.classList.add("show"));
     const close = () => {
       scrim.classList.remove("show");
@@ -113,15 +87,17 @@
 
   // Read-only mirror of customers.js's Store — this page never writes here.
   const CUSTOMERS_KEY = "fb-discovery-customers-v1";
-  function loadCustomer(id) {
+  function loadCustomers() {
     let saved = null;
     try {
       saved = JSON.parse(localStorage.getItem(CUSTOMERS_KEY) || "null");
     } catch (e) {
       saved = null;
     }
-    const b2b = (saved && saved.b2b) || SEED.b2b || [];
-    return b2b.find((c) => c._id === id) || null;
+    return (saved && saved.b2b) || SEED.b2b || [];
+  }
+  function loadCustomer(id) {
+    return loadCustomers().find((c) => c._id === id) || null;
   }
 
   /* --------------------------------------------------------------- audits */
@@ -177,40 +153,121 @@
     const m = condMeta(k);
     return `<span class="cond-badge ${esc(k)}">${m.icon} ${esc(m.label)}</span>`;
   }
+  function auditsFor(customerId) {
+    return AuditStore.list(customerId)
+      .slice()
+      .sort((a, b) => new Date(b.at) - new Date(a.at));
+  }
 
   /* ------------------------------------------------------------------ state */
 
+  let PAGE = null; // the #page host mountShell hands back
   let CUSTOMER = null;
-  let VIEW = "home"; // 'home' | 'capture'
+  let VIEW = "home"; // 'home' | 'capture' — only meaningful once a customer is open
   let HIST = { q: "", filter: "all", openId: null };
   let CAP = null;
-
-  function root() {
-    return document.getElementById("app");
-  }
+  let LIST = { q: "" };
 
   function render() {
     if (VIEW === "capture") renderCapture();
     else renderHome();
   }
 
-  /* ---------------------------------------------------------------- home */
+  /* ------------------------------------------------------------- customer list */
 
-  function auditsFor() {
-    return AuditStore.list(CUSTOMER._id)
-      .slice()
-      .sort((a, b) => new Date(b.at) - new Date(a.at));
+  function healthOf(customerId) {
+    const audits = auditsFor(customerId);
+    const latest = audits[0] || null;
+    return {
+      audits,
+      latest,
+      openVariances: latest ? varianceLines(latest).length : 0,
+      flagged: latest ? flaggedLines(latest).length : 0,
+      followUp: audits.some((a) => a.followUp && a.followUp.required),
+    };
   }
 
-  function topbarHTML() {
+  function listRowsHTML(rows) {
+    return rows
+      .map((c) => {
+        const h = healthOf(c._id);
+        return `
+        <tr data-id="${c._id}">
+          <td class="name">${esc(titleCase(nameOf(c)))}</td>
+          <td class="phone">${esc(c.phone)}</td>
+          <td>${h.latest ? esc(fmtDate(h.latest.at)) : `<span class="muted">Never audited</span>`}</td>
+          <td>${h.openVariances ? `<span class="status-tag warn">${h.openVariances} variance${h.openVariances === 1 ? "" : "s"}</span>` : h.latest ? `<span class="status-tag neutral">All matched</span>` : "—"}</td>
+          <td>${h.flagged ? `<span class="status-tag danger">${h.flagged} flagged</span>` : "—"}</td>
+          <td>${h.followUp ? `<span class="status-tag followup">Follow-up needed</span>` : "—"}</td>
+          <td class="r"><a class="btn-open" href="stock-audit.html?customer=${encodeURIComponent(c._id)}">Open →</a></td>
+        </tr>`;
+      })
+      .join("");
+  }
+
+  function renderList() {
+    const q = LIST.q.trim().toLowerCase();
+    const all = loadCustomers();
+    const rows = q
+      ? all.filter((c) => [nameOf(c), c.phone, c.email].some((v) => String(v || "").toLowerCase().includes(q)))
+      : all;
+
+    PAGE.innerHTML = `
+      <div class="head-card">
+        <div class="page-head">
+          <div>
+            <h1>Stock Audit &amp; Health</h1>
+            <p>Visit customers, count what's on the shelf, and track their stock health over time.</p>
+          </div>
+        </div>
+      </div>
+      <div class="searchbar">
+        <div class="field">
+          ${I.Search}
+          <input type="search" id="sah-list-q" value="${esc(LIST.q)}" placeholder="Search b2b customers…" />
+        </div>
+      </div>
+      ${
+        rows.length
+          ? `<div class="table-wrap"><div class="table-scroll">
+               <table class="grid">
+                 <thead><tr>
+                   <th>Name</th><th style="min-width:11rem">Phone</th><th>Last Audit</th>
+                   <th>Variances</th><th>Flagged</th><th>Follow-up</th><th></th>
+                 </tr></thead>
+                 <tbody>${listRowsHTML(rows)}</tbody>
+               </table>
+             </div></div>`
+          : `<div class="empty">
+               <div class="art">${I.Users}</div>
+               <h2>We're sorry, no customers found.</h2>
+               <p>${LIST.q ? "Try clearing the search." : "Add a B2B customer to start auditing their stock."}</p>
+             </div>`
+      }`;
+
+    const box = $("#sah-list-q", PAGE);
+    box.oninput = debounce(() => {
+      LIST.q = box.value;
+      renderList();
+      const b = $("#sah-list-q", PAGE);
+      if (b) {
+        b.focus();
+        b.setSelectionRange(b.value.length, b.value.length);
+      }
+    }, 250);
+  }
+
+  /* ---------------------------------------------------------------- detail: home */
+
+  function heroHTML() {
     const name = titleCase(nameOf(CUSTOMER));
     const addr = [CUSTOMER.adress1, CUSTOMER.state && CUSTOMER.state.name].filter(Boolean).join(", ") || "No address on file";
     return `
-      <div class="sah-topbar">
-        <a class="back" href="b2b-customers.html">← Back to Customers</a>
+      <div class="sah-hero">
+        <a class="back" href="stock-audit.html">← Back to Stock Audit &amp; Health</a>
         <div class="row">
           <div>
-            <p class="eyebrow">Stock Audit &amp; Health</p>
+            <p class="eyebrow">Customer</p>
             <h1>${esc(name)}</h1>
             <p class="sub">${esc(addr)}${CUSTOMER.phone ? " · " + esc(CUSTOMER.phone) : ""}</p>
           </div>
@@ -315,16 +372,16 @@
   }
 
   function renderHome() {
-    const audits = auditsFor();
+    const audits = auditsFor(CUSTOMER._id);
     const latest = audits[0] || null;
     const openVariances = latest ? varianceLines(latest).length : 0;
     const attention = latest ? flaggedLines(latest) : [];
     const followUpCount = audits.filter((a) => a.followUp && a.followUp.required).length;
     const visible = filteredAudits(audits);
 
-    root().innerHTML = `
+    PAGE.innerHTML = `
       <div class="sah-wrap">
-        ${topbarHTML()}
+        ${heroHTML()}
         <div class="sah-tiles">
           <div class="sah-tile navy"><div class="n">${openVariances}</div><div class="l">Open Variances</div></div>
           <div class="sah-tile orange"><div class="n">${attention.length}</div><div class="l">Attention Items</div></div>
@@ -344,14 +401,14 @@
   }
 
   function wireHome(audits) {
-    $("#newAudit").onclick = startCapture;
+    $("#newAudit", PAGE).onclick = startCapture;
 
-    const q = $("#histQ");
+    const q = $("#histQ", PAGE);
     if (q) {
       q.oninput = debounce(() => {
         HIST.q = q.value;
         renderHome();
-        const box = $("#histQ");
+        const box = $("#histQ", PAGE);
         if (box) {
           box.focus();
           box.setSelectionRange(box.value.length, box.value.length);
@@ -359,42 +416,34 @@
       }, 200);
     }
 
-    root()
-      .querySelectorAll("[data-f]")
-      .forEach((b) => (b.onclick = () => { HIST.filter = b.dataset.f; renderHome(); }));
+    PAGE.querySelectorAll("[data-f]").forEach((b) => (b.onclick = () => { HIST.filter = b.dataset.f; renderHome(); }));
 
-    root()
-      .querySelectorAll("[data-toggle]")
-      .forEach((el) => (el.onclick = () => {
-        const id = el.dataset.toggle;
-        HIST.openId = HIST.openId === id ? null : id;
-        renderHome();
-      }));
+    PAGE.querySelectorAll("[data-toggle]").forEach((el) => (el.onclick = () => {
+      const id = el.dataset.toggle;
+      HIST.openId = HIST.openId === id ? null : id;
+      renderHome();
+    }));
 
-    root()
-      .querySelectorAll("[data-fu-save]")
-      .forEach((b) => (b.onclick = () => {
-        const id = b.dataset.fuSave;
-        const a = audits.find((x) => x.id === id);
-        if (!a) return;
-        const ta = root().querySelector(`[data-fu-note="${id}"]`);
-        a.followUp = { required: true, note: ta ? ta.value.trim() : "", at: new Date().toISOString() };
-        AuditStore.save();
-        toast("Follow-up flagged.");
-        renderHome();
-      }));
+    PAGE.querySelectorAll("[data-fu-save]").forEach((b) => (b.onclick = () => {
+      const id = b.dataset.fuSave;
+      const a = audits.find((x) => x.id === id);
+      if (!a) return;
+      const ta = PAGE.querySelector(`[data-fu-note="${id}"]`);
+      a.followUp = { required: true, note: ta ? ta.value.trim() : "", at: new Date().toISOString() };
+      AuditStore.save();
+      toast("Follow-up flagged.");
+      renderHome();
+    }));
 
-    root()
-      .querySelectorAll("[data-fu-clear]")
-      .forEach((b) => (b.onclick = () => {
-        const id = b.dataset.fuClear;
-        const a = audits.find((x) => x.id === id);
-        if (!a) return;
-        a.followUp = { required: false, note: "", at: "" };
-        AuditStore.save();
-        toast("Follow-up cleared.");
-        renderHome();
-      }));
+    PAGE.querySelectorAll("[data-fu-clear]").forEach((b) => (b.onclick = () => {
+      const id = b.dataset.fuClear;
+      const a = audits.find((x) => x.id === id);
+      if (!a) return;
+      a.followUp = { required: false, note: "", at: "" };
+      AuditStore.save();
+      toast("Follow-up cleared.");
+      renderHome();
+    }));
   }
 
   /* ------------------------------------------------------------- capture */
@@ -449,9 +498,9 @@
     const entered = Object.keys(CAP.lines).filter((id) => CAP.lines[id].counted !== "" && CAP.lines[id].counted != null).length;
     const pct = products.length ? Math.round((entered / products.length) * 100) : 0;
 
-    root().innerHTML = `
+    PAGE.innerHTML = `
       <div class="sah-wrap">
-        <div class="sah-topbar">
+        <div class="sah-hero">
           <button type="button" class="back" id="capBack">← ${esc(titleCase(nameOf(CUSTOMER)))}</button>
           <div class="row">
             <div>
@@ -489,18 +538,18 @@
       CAP = null;
       render();
     };
-    $("#capBack").onclick = backToHome;
-    $("#capCancel").onclick = backToHome;
+    $("#capBack", PAGE).onclick = backToHome;
+    $("#capCancel", PAGE).onclick = backToHome;
 
-    $("#capAt").oninput = (e) => (CAP.at = e.target.value);
-    $("#capAuditor").oninput = (e) => (CAP.auditor = e.target.value);
-    $("#capNotes").oninput = (e) => (CAP.notes = e.target.value);
+    $("#capAt", PAGE).oninput = (e) => (CAP.at = e.target.value);
+    $("#capAuditor", PAGE).oninput = (e) => (CAP.auditor = e.target.value);
+    $("#capNotes", PAGE).oninput = (e) => (CAP.notes = e.target.value);
 
-    const q = $("#capQ");
+    const q = $("#capQ", PAGE);
     q.oninput = debounce(() => {
       CAP.q = q.value;
       renderCapture();
-      const box = $("#capQ");
+      const box = $("#capQ", PAGE);
       if (box) {
         box.focus();
         box.setSelectionRange(box.value.length, box.value.length);
@@ -515,16 +564,16 @@
     function updateProgress() {
       const entered = Object.keys(CAP.lines).filter((id) => CAP.lines[id].counted !== "" && CAP.lines[id].counted != null).length;
       const pct = products.length ? Math.round((entered / products.length) * 100) : 0;
-      const txt = $(".cap-progress .txt");
+      const txt = $(".cap-progress .txt", PAGE);
       if (txt) txt.textContent = `${entered} / ${products.length} captured`;
-      const bar = $(".cap-progress .bar > span");
+      const bar = $(".cap-progress .bar > span", PAGE);
       if (bar) bar.style.width = pct + "%";
-      const btn = $("#capComplete");
+      const btn = $("#capComplete", PAGE);
       if (btn) btn.disabled = entered === 0;
     }
 
     function syncCard(p) {
-      const card = root().querySelector(`.cap-card[data-p="${p.id}"]`);
+      const card = PAGE.querySelector(`.cap-card[data-p="${p.id}"]`);
       if (!card) return;
       const line = CAP.lines[p.id];
       const touched = line != null;
@@ -547,7 +596,7 @@
     }
 
     list.forEach((p) => {
-      const card = root().querySelector(`.cap-card[data-p="${p.id}"]`);
+      const card = PAGE.querySelector(`.cap-card[data-p="${p.id}"]`);
       if (!card) return;
       const input = card.querySelector(".cap-stepper input");
 
@@ -582,7 +631,7 @@
       };
     });
 
-    $("#capComplete").onclick = completeAudit;
+    $("#capComplete", PAGE).onclick = completeAudit;
   }
 
   function completeAudit() {
@@ -635,23 +684,30 @@
 
   /* ------------------------------------------------------------------ mount */
 
-  function renderNotFound() {
-    root().innerHTML = `<div class="sah-empty" style="padding-top:80px">
-      <div class="big">🔍</div>
-      <p>Customer not found.<br>Open this page from a B2B customer row's Stock Audit icon.</p>
-      <p style="margin-top:14px"><a href="b2b-customers.html" style="color:var(--teal)">← Back to Customers</a></p>
-    </div>`;
-  }
-
   function mount() {
+    PAGE = mountShell($("#app"), { screen: "stock-audit", crumb: "Stock Audit & Health", tenant: SEED.tenant });
+    AuditStore.load();
+
     const params = new URLSearchParams(location.search);
     const id = params.get("customer");
-    CUSTOMER = id ? loadCustomer(id) : null;
-    AuditStore.load();
-    if (!CUSTOMER) {
-      renderNotFound();
+
+    if (!id) {
+      CUSTOMER = null;
+      renderList();
       return;
     }
+
+    CUSTOMER = loadCustomer(id);
+    if (!CUSTOMER) {
+      PAGE.innerHTML = `<div class="sah-empty" style="padding-top:80px">
+        <div class="big">🔍</div>
+        <p>Customer not found.<br>It may have been removed, or the link is stale.</p>
+        <p style="margin-top:14px"><a href="stock-audit.html" style="color:var(--teal)">← Back to Stock Audit &amp; Health</a></p>
+      </div>`;
+      return;
+    }
+    VIEW = "home";
+    HIST = { q: "", filter: "all", openId: null };
     render();
   }
 

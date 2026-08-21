@@ -4,45 +4,45 @@
   -----------------------------------------------------------------------
   Added post-v1-freeze, at the product owner's direct request: promotes the
   old CustomerStockDrawer (a small in-place overlay covering "Stock Count" +
-  "Stock History") into its own page with the full distributor visit loop —
-  Visit → Audit → Capture → (history, follow-up). v1 is otherwise a frozen
-  snapshot; this is the one deliberate exception, called out rather than
-  silently edited in.
+  "Stock History") into its own screen with the full distributor visit loop
+  — Visit → Audit → Capture → History — listed under Customer Management as
+  a peer of B2B Customers and Retail Customers, not tucked behind a row
+  action. v1 is otherwise a frozen snapshot; this is the one deliberate
+  exception, called out rather than silently edited in.
 
-  Why a page, not a drawer: the platform shell that embeds b2b-customers.html
-  clips a fixed-width strip off the left of the iframe, sized to THIS screen's
-  own sidebar. A page with no sidebar of its own would have that strip clipped
-  off its real content instead. b2b-customers.html therefore opens this in a
-  NEW TAB (target="_blank") rather than navigating in place — sidestepping the
-  clip entirely and letting this screen own its full width.
+  Same route, two views, driven by ?customer=<id>:
+    (none)      Customer list — every B2B customer with a stock-health
+                summary (last audit, open variances, follow-up flag), the
+                same table chrome b2b-customers.html uses. This is the
+                screen the sidebar link opens.
+    ?customer=  That customer's Stock Audit & Health detail — health tiles,
+                Attention Needed, searchable Audit History with follow-up,
+                and the New Audit capture flow. UI/UX borrowed from the
+                Distribution & Logistics → Delivery Management module (teal
+                hero card, colour stat tiles, status-tag pills, chip
+                filters, card lists, bottom-sheet confirmations), scoped to
+                the page's own content area — the sidebar/topbar chrome
+                around it is the same shared shell every other screen in
+                this module uses, which is what makes this a real listed
+                page rather than a one-off tool. See stock-audit.css's
+                header for the full rationale.
 
-  UI/UX borrowed from the Distribution & Logistics → Delivery Management
-  module (teal header, colour stat tiles, status-tag pills, chip filters,
-  card lists, bottom-sheet confirmations) per the product owner's request,
-  adapted from Delivery Management's phone-frame mobile app into a normal
-  responsive desktop/tablet page — this is opened from an admin table, not
-  simulated as a phone. See stock-audit.css's header for the full rationale.
+  Mounts through shell.js's mountShell (sidebar, topbar, drawer/modal/toast
+  primitives) exactly like b2b-customers.html and retail-customers.html —
+  it does NOT stand alone or open in a new tab. Business flow implemented
+  (phase 1 — capture + history): count each product, flag variance and
+  damaged/expired/near-expiry/out-of-stock condition, flag shelf
+  availability, complete an audit, optionally flag a follow-up. Deliberately
+  deferred to a later iteration: multi-audit trend charts, reorder-cycle
+  detection, overstock/slow-moving analysis, a health score, and
+  replenishment recommendations — one or two audits of seed data isn't
+  enough to design those honestly.
 
-  Business flow implemented here (phase 1 — capture + history):
-    Visit → start a Stock Audit for one customer → count each product on the
-    catalogue → flag variance, damaged/expired/near-expiry/out-of-stock
-    condition, and shelf availability per line → complete → the audit joins
-    this customer's history, with an optional follow-up flag for the next
-    visit.
-  Deliberately deferred to a later iteration (needs more than one audit's
-  worth of seed data to design honestly): multi-audit trend charts, reorder-
-  cycle detection, overstock/slow-moving analysis, a health score, and
-  replenishment recommendations. The "Attention Needed" section below is
-  real but intentionally simple — it just surfaces the latest audit's
-  flagged lines, not a predictive model.
-
-  Standalone-openable: open this file directly with ?customer=<id> (any B2B
-  seed id, e.g. c01, c05, c11) to review in isolation. Loads its own icons/
-  helpers rather than shell.js's admin chrome, matching Delivery Management's
-  own self-contained app.js — this page never mounts inside the admin sidebar
-  shell. Data comes from seed.inline.js (same seed as the rest of the
-  module); audits persist to localStorage for the session, same convention
-  as customers.js's Store.
+  Standalone-openable: open this file directly (optionally with
+  ?customer=c01/c05/c11 for the richer seed data) to review in isolation.
+  Data comes from seed.inline.js, same seed as the rest of the module;
+  audits persist to localStorage for the session, same convention as
+  customers.js's Store.
 
   Rules: HTML/CSS/vanilla JS only. No frameworks, no build step, no real API
   calls.
@@ -52,11 +52,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Stock Audit &amp; Health — Foodbridge Module Customer</title>
+  <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="stock-audit.css">
 </head>
 <body>
-  <div class="sah" id="app"></div>
+  <div class="app sah" id="app"></div>
+  <script src="icons.js"></script>
   <script src="seed.inline.js"></script>
+  <script src="shell.js"></script>
   <script src="stock-audit.js"></script>
   <script>SAH.mount();</script>
 </body>

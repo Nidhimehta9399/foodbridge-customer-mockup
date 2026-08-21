@@ -34,10 +34,13 @@
     - "+ B2B Customers" / pencil  → Add/Edit drawer over the list
     - trash / Bulk Action→Delete  → Delete confirm modal → list
     - Bulk Action → Assign tags   → Tag drawer → list
-    - bar-chart                   → stock-audit.html (own page, new tab)
+    - bar-chart                   → stock-audit.html?customer=<id> (that
+                                     customer's Stock Audit & Health detail)
     - gift                        → Offers drawer
     - Import                      → Import preview modal → list
-    - sidebar "Retail Customers"  → retail-customers.html (the only navigation)
+    - sidebar "Retail Customers"  → retail-customers.html
+    - sidebar "Stock Audit & Health" → stock-audit.html (customer list, no
+                                     query — a peer screen, not a drawer)
 
   Rules: HTML/CSS/vanilla JS only. No frameworks, no build step, no real API
   calls. Disposable — informs the SSOTs, not imported by development/.
