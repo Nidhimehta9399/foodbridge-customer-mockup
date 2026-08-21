@@ -208,13 +208,19 @@
      independent of the counted number, because "0 counted" and "shelf empty,
      nothing to sell" (out_of_stock) are the same fact but "expired stock still
      sitting on the shelf" is a different, non-zero-count problem entirely.
-     `followUp` records whether the visit needs a return trip. */
+     `followUp` records whether the visit needs a return trip. `purpose` is
+     the visit reason picked in Create Audit — see PURPOSES in stock-audit.js.
+     Dates are picked so the field-ops landing page shows real variety across
+     "Recently Audited" / "Due for Visit" / "Overdue" against SEED.today (see
+     orderingSignals below): c01 is a healthy customer who is simply due for a
+     routine check-in; c11 was visited recently but still has open issues. */
   const stockAudits = {
     c01: [
       {
         id: "aud-c01-1",
-        at: "2026-08-10T15:41:00",
+        at: "2026-08-05T15:41:00",
         auditor: "Mahesh",
+        purpose: "routine",
         notes: "",
         lines: [{ productId: "p01", system: 2, counted: 2, condition: "ok", shelfAvailable: true }],
         followUp: { required: false, note: "", at: "" },
@@ -225,6 +231,7 @@
         id: "aud-c02-1",
         at: "2026-08-10T15:41:00",
         auditor: "Mahesh",
+        purpose: "routine",
         notes: "",
         lines: [{ productId: "p06", system: 2, counted: 1, condition: "ok", shelfAvailable: true }],
         followUp: { required: false, note: "", at: "" },
@@ -235,6 +242,7 @@
         id: "aud-c05-1",
         at: "2026-08-06T11:02:00",
         auditor: "Mahesh",
+        purpose: "routine",
         notes: "Monthly audit — aisle 3 & 4",
         lines: [
           { productId: "p11", system: 8, counted: 8, condition: "ok", shelfAvailable: true },
@@ -248,6 +256,7 @@
         id: "aud-c11-1",
         at: "2026-08-07T09:20:00",
         auditor: "Mahesh",
+        purpose: "routine",
         notes: "Opening count",
         lines: [
           { productId: "p12", system: 15, counted: 15, condition: "ok", shelfAvailable: true },
@@ -261,8 +270,9 @@
       },
       {
         id: "aud-c11-2",
-        at: "2026-08-14T10:05:00",
+        at: "2026-08-18T10:05:00",
         auditor: "Mahesh",
+        purpose: "followup",
         notes: "Follow-up visit",
         lines: [
           { productId: "p12", system: 15, counted: 10, condition: "ok", shelfAvailable: true },
@@ -272,6 +282,24 @@
         followUp: { required: false, note: "", at: "" },
       },
     ],
+  };
+
+  /* ---- Ordering signals, backing the "Ordering Status" column ------------
+     Distributor-visible reorder cadence per customer — synthesized for this
+     discovery (the real signal lives in the Sales Orders module, a separate
+     repo not wired into this seed). `avgCycleDays` is how often this
+     customer typically reorders; `expectedNextOrderAt` (derived at render
+     time from lastOrderAt + avgCycleDays) vs. today decides On Track /
+     Slipping / Overdue. Customers absent here show "Unknown" — that's
+     honest: it means the platform doesn't have an ordering signal yet, not
+     that everything is fine. */
+  const orderingSignals = {
+    c01: { lastOrderAt: "2026-08-19", avgCycleDays: 7 },
+    c02: { lastOrderAt: "2026-08-03", avgCycleDays: 10 },
+    c03: { lastOrderAt: "2026-07-20", avgCycleDays: 14 },
+    c04: { lastOrderAt: "2026-08-17", avgCycleDays: 7 },
+    c05: { lastOrderAt: "2026-08-15", avgCycleDays: 14 },
+    c11: { lastOrderAt: "2026-08-20", avgCycleDays: 5 },
   };
 
   /* ---- Per-customer offers, backing the Offers drawer -------------------
@@ -339,6 +367,7 @@
     b2b,
     retail,
     stockAudits,
+    orderingSignals,
     offers,
     products,
     appProp,

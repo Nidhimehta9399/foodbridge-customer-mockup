@@ -2,41 +2,33 @@
 <!--
   DISCOVERY SCREEN — Foodbridge Module Customer — "Stock Audit & Health"
   -----------------------------------------------------------------------
-  Added post-v1-freeze, at the product owner's direct request: promotes the
-  old CustomerStockDrawer (a small in-place overlay covering "Stock Count" +
-  "Stock History") into its own screen with the full distributor visit loop
-  — Visit → Audit → Capture → History — listed under Customer Management as
-  a peer of B2B Customers and Retail Customers, not tucked behind a row
-  action. v1 is otherwise a frozen snapshot; this is the one deliberate
-  exception, called out rather than silently edited in.
+  A distributor field-operations hub, mobile-first, listed under Customer
+  Management as a peer of B2B Customers and Retail Customers — not a drawer,
+  not a one-off tool. v1 is otherwise a frozen snapshot; this is the one
+  deliberate exception, called out rather than silently edited in.
 
-  Same route, two views, driven by ?customer=<id>:
-    (none)      Customer list — every B2B customer with a stock-health
-                summary (last audit, open variances, follow-up flag), the
-                same table chrome b2b-customers.html uses. This is the
-                screen the sidebar link opens.
-    ?customer=  That customer's Stock Audit & Health detail — health tiles,
-                Attention Needed, searchable Audit History with follow-up,
-                and the New Audit capture flow. UI/UX borrowed from the
-                Distribution & Logistics → Delivery Management module (teal
-                hero card, colour stat tiles, status-tag pills, chip
-                filters, card lists, bottom-sheet confirmations), scoped to
-                the page's own content area — the sidebar/topbar chrome
-                around it is the same shared shell every other screen in
-                this module uses, which is what makes this a real listed
-                page rather than a one-off tool. See stock-audit.css's
-                header for the full rationale.
+  UI/UX and theme are carried over from the platform's Distribution &
+  Logistics → Delivery Management module on purpose (teal chrome, colour
+  tiles, status-tag pills, card lists — never a dense table, this is a
+  field tool) — including, per the product owner's explicit ask, Delivery
+  Management's own persistent bottom nav bar. It stays on screen through
+  EVERY view in this feature (`.sah-nav` in stock-audit.css), not just on
+  mobile widths, so a rep always has Customers / Audits / + New Audit /
+  Attention / Back within thumb's reach.
 
-  Mounts through shell.js's mountShell (sidebar, topbar, drawer/modal/toast
+  One route (?customer=<id> optional), many views, run by a small
+  stack-based router in stock-audit.js (go/back, mirroring Delivery
+  Management's own DM.go/DM.back) — see that file's header for the full
+  view list. The UX loop:
+
+    Who needs attention → Why → What should I do next → Start Audit
+    Create Visit → Understand Customer → Audit Stock → Capture Exceptions
+      → Complete Audit → Get Actions → Build Customer History
+
+  Mounts through shell.js's mountShell (sidebar, topbar, drawer/toast
   primitives) exactly like b2b-customers.html and retail-customers.html —
-  it does NOT stand alone or open in a new tab. Business flow implemented
-  (phase 1 — capture + history): count each product, flag variance and
-  damaged/expired/near-expiry/out-of-stock condition, flag shelf
-  availability, complete an audit, optionally flag a follow-up. Deliberately
-  deferred to a later iteration: multi-audit trend charts, reorder-cycle
-  detection, overstock/slow-moving analysis, a health score, and
-  replenishment recommendations — one or two audits of seed data isn't
-  enough to design those honestly.
+  it does NOT stand alone or open in a new tab; ?customer=<id> is only a
+  deep link into the customer-detail view, not a separate page.
 
   Standalone-openable: open this file directly (optionally with
   ?customer=c01/c05/c11 for the richer seed data) to review in isolation.

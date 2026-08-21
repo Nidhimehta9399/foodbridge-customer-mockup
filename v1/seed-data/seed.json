@@ -1060,13 +1060,14 @@
       }
     ]
   },
-  "_stockAuditsNote": "One record per distributor visit, backing the Stock Audit & Health page. Lines are keyed by productId only (name/artNo/category/unit/emoji come from `products`); `system` freezes the stock the audit saw at capture time; `condition` is the shelf finding, independent of the counted number.",
+  "_stockAuditsNote": "One record per distributor visit, backing the Stock Audit & Health page. Lines are keyed by productId only (name/artNo/category/unit/emoji come from `products`); `system` freezes the stock the audit saw at capture time; `condition` is the shelf finding, independent of the counted number. `purpose` is the visit reason picked in Create Audit.",
   "stockAudits": {
     "c01": [
       {
         "id": "aud-c01-1",
-        "at": "2026-08-10T15:41:00",
+        "at": "2026-08-05T15:41:00",
         "auditor": "Mahesh",
+        "purpose": "routine",
         "notes": "",
         "lines": [
           { "productId": "p01", "system": 2, "counted": 2, "condition": "ok", "shelfAvailable": true }
@@ -1079,6 +1080,7 @@
         "id": "aud-c02-1",
         "at": "2026-08-10T15:41:00",
         "auditor": "Mahesh",
+        "purpose": "routine",
         "notes": "",
         "lines": [
           { "productId": "p06", "system": 2, "counted": 1, "condition": "ok", "shelfAvailable": true }
@@ -1091,6 +1093,7 @@
         "id": "aud-c05-1",
         "at": "2026-08-06T11:02:00",
         "auditor": "Mahesh",
+        "purpose": "routine",
         "notes": "Monthly audit — aisle 3 & 4",
         "lines": [
           { "productId": "p11", "system": 8, "counted": 8, "condition": "ok", "shelfAvailable": true },
@@ -1104,6 +1107,7 @@
         "id": "aud-c11-1",
         "at": "2026-08-07T09:20:00",
         "auditor": "Mahesh",
+        "purpose": "routine",
         "notes": "Opening count",
         "lines": [
           { "productId": "p12", "system": 15, "counted": 15, "condition": "ok", "shelfAvailable": true },
@@ -1117,8 +1121,9 @@
       },
       {
         "id": "aud-c11-2",
-        "at": "2026-08-14T10:05:00",
+        "at": "2026-08-18T10:05:00",
         "auditor": "Mahesh",
+        "purpose": "followup",
         "notes": "Follow-up visit",
         "lines": [
           { "productId": "p12", "system": 15, "counted": 10, "condition": "ok", "shelfAvailable": true },
@@ -1128,6 +1133,15 @@
         "followUp": { "required": false, "note": "", "at": "" }
       }
     ]
+  },
+  "_orderingSignalsNote": "Distributor-visible reorder cadence per customer, backing the Ordering Status column — synthesized for this discovery (the real signal lives in the separate Sales Orders module repo). Customers absent here show as Unknown.",
+  "orderingSignals": {
+    "c01": { "lastOrderAt": "2026-08-19", "avgCycleDays": 7 },
+    "c02": { "lastOrderAt": "2026-08-03", "avgCycleDays": 10 },
+    "c03": { "lastOrderAt": "2026-07-20", "avgCycleDays": 14 },
+    "c04": { "lastOrderAt": "2026-08-17", "avgCycleDays": 7 },
+    "c05": { "lastOrderAt": "2026-08-15", "avgCycleDays": 14 },
+    "c11": { "lastOrderAt": "2026-08-20", "avgCycleDays": 5 }
   },
   "offers": {
     "c01": [
