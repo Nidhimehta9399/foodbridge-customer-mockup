@@ -60,15 +60,6 @@
 .nav-btn .ic { font-size: 20px; line-height: 1; }
 .nav-btn.active { color: var(--teal); font-weight: 800; }
 .nav-btn:active { opacity: .6; }
-.nav-btn.fab-slot { position: relative; }
-.nav-fab {
-  position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
-  width: 46px; height: 46px; border-radius: 50%; background: var(--teal); color: #fff;
-  display: grid; place-items: center; font-size: 22px; font-weight: 700; border: 4px solid #fff;
-  box-shadow: 0 4px 12px rgba(18,97,94,.4);
-}
-.nav-btn.fab-slot span.lbl { margin-top: 24px; }
-.nav-btn.fab-slot.active .nav-fab, .nav-btn.fab-slot .nav-fab { color: #fff; } /* fab never shows the muted/active text colour */
 
 /* ── Page header (list-style views) ──────────────────────────────────────── */
 .sah-page-head { padding: 4px 0 14px; }

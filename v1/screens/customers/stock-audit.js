@@ -407,7 +407,7 @@
       <div class="sah-nav">
         <button class="nav-btn ${active === "customers" ? "active" : ""}" data-nav="customers"><span class="ic">🏬</span>Customers</button>
         <button class="nav-btn ${active === "audits" ? "active" : ""}" data-nav="audits"><span class="ic">🗂️</span>Audit History</button>
-        <button class="nav-btn fab-slot" data-nav="create"><span class="nav-fab">+</span><span class="lbl">New Audit</span></button>
+        <button class="nav-btn" data-nav="create"><span class="ic">+</span>New Audit</button>
       </div>`;
   }
   function wireNav() {
