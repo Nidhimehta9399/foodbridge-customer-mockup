@@ -1236,6 +1236,8 @@
     const followUpCount = audits.filter((a) => a.followUp && a.followUp.required).length;
     const order = orderingStatusFor(customerId);
     const openDraft = DraftStore.get(customerId);
+    const score = customerScoreFor(customerId);
+    const sl = scoreLabel(score);
 
     let visible = audits;
     if (HIST.filter === "followup") visible = visible.filter((a) => a.followUp && a.followUp.required);
@@ -1259,13 +1261,20 @@
         <span class="txt"><b>Visit in progress</b>${draftProgress(openDraft).captured} of ${draftProgress(openDraft).total} products counted · ${esc(purposeMeta(openDraft.purpose).label)}</span>
         <span class="go">Resume ›</span>
       </div>` : ""}
-      <div class="sah-tiles">
-        <div class="sah-tile navy"><div class="n">${openVariances}</div><div class="l">Open Variances</div></div>
-        <div class="sah-tile orange"><div class="n">${attention.length}</div><div class="l">Attention Items</div></div>
-        <div class="sah-tile green"><div class="n">${products.length}</div><div class="l">Products Tracked</div></div>
-        <div class="sah-tile red"><div class="n">${followUpCount}</div><div class="l">Follow-ups Open</div></div>
-      </div>
       <div class="sah-body">
+        ${latest ? `
+        <div class="sec-label">Customer Health — as of ${esc(fmtDateShort(latest.at))}</div>
+        <div class="score-card">
+          <div class="score-ring ${sl.cls}">${score}</div>
+          <div>
+            <div class="lbl">Health Score</div>
+            <div class="desc">${esc(sl.label)}</div>
+            <div class="sub">${plural(openVariances, "open variance")} · ${plural(attention.length, "attention item")} · ${plural(followUpCount, "follow-up")} open</div>
+            ${latest.outcome ? `<div class="outcome">${outcomeMeta(latest.outcome).icon} ${esc(outcomeMeta(latest.outcome).label)}</div>` : ""}
+          </div>
+        </div>
+        ${healthAxesHTML(latest)}` : `
+        <div class="sah-empty"><div class="big">📋</div><p>No completed audit yet — health is measured from the first visit.</p></div>`}
         ${latest ? `<div class="sec-label">Attention Needed — since ${esc(fmtDate(latest.at))}</div>` : ""}
         ${latest && attention.length ? attentionProductsHTML(attention) : latest ? `<p style="color:var(--muted);font-size:13px;margin:-4px 0 26px">Nothing flagged in the last audit — shelf looked healthy.</p>` : ""}
         <div class="sec-label">Audit History</div>
@@ -1336,23 +1345,64 @@
           <span class="chev">▾</span>
         </div>
         <div class="audit-detail">
+          ${auditMetaHTML(a)}
           ${a.notes ? `<p class="notes">"${esc(a.notes)}"</p>` : ""}
-          ${a.lines.map((l) => {
-            const p = productById(l.productId) || {};
-            const v = lineVariance(l);
-            const unverified = l.status !== "audited";
-            const vCls = unverified ? "" : v === 0 ? "match" : v > 0 ? "up" : "down";
-            const vTxt = unverified ? "—" : v === 0 ? "Match" : (v > 0 ? "+" : "") + v;
-            return `<div class="detail-line">
-              <span class="pn">${esc(p.name || l.productId)}<small>Art No: ${esc(p.artNo || "—")} · Expected ${lineExpected(l)}${esc(p.unit ? " " + p.unit : "")}</small></span>
-              <span class="cnt">${l.status === "not_found" ? "Not found" : `Found ${linePhysical(l)}${esc(p.unit ? " " + p.unit : "")}`}</span>
-              ${conditionBadgeHTML(dominantCondition(l))}
-              <span class="var ${vCls}">${vTxt}</span>
-            </div>`;
-          }).join("")}
+          ${a.lines.map(detailLineHTML).join("")}
+          ${a.finalNote ? `<p class="notes">"${esc(a.finalNote)}"</p>` : ""}
           ${followUpHTML(a)}
         </div>
       </div>`;
+  }
+
+  // The whole observation, not just the number. A count six months old is
+  // only useful if it still says where the stock was, what state it was in,
+  // and what the rep decided about it.
+  function detailLineHTML(l) {
+    const p = productById(l.productId) || {};
+    const unit = p.unit ? " " + p.unit : "";
+    const v = lineVariance(l);
+    const unverified = l.status !== "audited";
+    const vCls = unverified ? "" : v === 0 ? "match" : v > 0 ? "up" : "down";
+    const vTxt = unverified ? "—" : v === 0 ? "Match" : (v > 0 ? "+" : "") + v;
+
+    const split = CONDITION_KEYS.filter((c) => (l.conditionBreakdown[c.k] || 0) > 0);
+    const where = STORAGE_KEYS.filter((k) => (l.storageBreakdown[k.k] || 0) > 0);
+    const facts = [];
+    if (l.status === "not_found") facts.push(esc(notFoundMeta(l.notFoundReason).label));
+    if (split.length > 1) facts.push(split.map((c) => `${l.conditionBreakdown[c.k]} ${c.label.toLowerCase()}`).join(", "));
+    if (where.length) facts.push(where.map((k) => `${l.storageBreakdown[k.k]} ${k.label.toLowerCase()}`).join(", "));
+    if (l.shelfAvailability && l.shelfAvailability !== "available") facts.push(esc(shelfMeta(l.shelfAvailability).label.toLowerCase()));
+    if (l.facings) facts.push(plural(l.facings, "facing"));
+    l.expiryDetails.forEach((e) => {
+      const bits = [e.date ? "expires " + fmtDateShort(e.date) : "", e.batch ? "batch " + e.batch : ""].filter(Boolean);
+      if (bits.length) facts.push(esc(bits.join(", ")));
+    });
+    if (l.disposition) facts.push(esc((DISPOSITIONS.find((d) => d.k === l.disposition) || {}).label || ""));
+    if (l.damageType) facts.push(esc(((DAMAGE_TYPES.find((d) => d.k === l.damageType) || {}).label || "") + " damage"));
+    if (l.evidence.length) facts.push("📷 " + plural(l.evidence.length, "photo"));
+
+    return `<div class="detail-line">
+      <span class="pn">${esc(p.name || l.productId)}<small>Art No: ${esc(p.artNo || "—")} · Expected ${lineExpected(l)}${esc(unit)}</small></span>
+      <span class="cnt">${l.status === "not_found" ? "Not found" : `Found ${linePhysical(l)}${esc(unit)}`}</span>
+      ${conditionBadgeHTML(dominantCondition(l))}
+      <span class="var ${vCls}">${vTxt}</span>
+      ${facts.length ? `<span class="facts">${facts.join(" · ")}</span>` : ""}
+      ${l.notes ? `<span class="line-note">"${esc(l.notes)}"</span>` : ""}
+    </div>`;
+  }
+
+  // Everything about the visit that isn't a product: how much got covered,
+  // how it ended, and what the rep wrote on the way out.
+  function auditMetaHTML(a) {
+    const cov = auditCoverage(a);
+    const bits = [`${cov.audited} of ${cov.expected} products`];
+    if (a.partial && a.partial.isPartial) {
+      const why = (PARTIAL_REASONS.find((r) => r.k === a.partial.reason) || ABANDON_REASONS.find((r) => r.k === a.partial.reason) || { label: "reason not given" }).label;
+      bits.push("partial — " + why.toLowerCase());
+    }
+    if (a.outcome) bits.push(outcomeMeta(a.outcome).label.toLowerCase());
+    if (a.actors && a.actors.completedBy && a.actors.completedBy !== a.actors.startedBy) bits.push("completed by " + a.actors.completedBy);
+    return `<p class="audit-meta">${esc(bits.join(" · "))}</p>`;
   }
 
   function followUpHTML(a) {
