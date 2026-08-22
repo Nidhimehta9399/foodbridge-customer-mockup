@@ -361,21 +361,22 @@
   /* --------------------------------------------------------- persistent nav */
 
   function navActiveKey(view) {
-    if (view === "customers") return "customers";
-    if (view === "customer-detail") return "customers";
     if (view === "audits") return "audits";
     return null;
   }
 
+  // Trimmed to three per the product owner's call: this is a field tool, not
+  // a place to browse — Audit History to look back, New Audit to act, Back
+  // to retrace steps within a visit. "Customers" and the "Attention" shortcut
+  // are still real views (reached from row actions and the landing filter
+  // chips), just not permanent nav real estate.
   function navHTML(view) {
     const active = navActiveKey(view);
     const canBack = STACK.length > 0;
     return `
       <div class="sah-nav">
-        <button class="nav-btn ${active === "customers" ? "active" : ""}" data-nav="customers"><span class="ic">🏬</span>Customers</button>
-        <button class="nav-btn ${active === "audits" ? "active" : ""}" data-nav="audits"><span class="ic">🗂️</span>Audits</button>
+        <button class="nav-btn ${active === "audits" ? "active" : ""}" data-nav="audits"><span class="ic">🗂️</span>Audit History</button>
         <button class="nav-btn fab-slot" data-nav="create"><span class="nav-fab">+</span><span class="lbl">New Audit</span></button>
-        <button class="nav-btn" data-nav="attention"><span class="ic">⚠️</span>Attention</button>
         <button class="nav-btn ${canBack ? "" : "disabled"}" data-nav="back" ${canBack ? "" : "disabled"}><span class="ic">←</span>Back</button>
       </div>`;
   }
@@ -383,10 +384,8 @@
     PAGE.querySelectorAll("[data-nav]").forEach((b) => {
       b.onclick = () => {
         const k = b.dataset.nav;
-        if (k === "customers") go("customers", {}, true);
-        else if (k === "audits") go("audits", {}, true);
+        if (k === "audits") go("audits", {}, true);
         else if (k === "create") { DRAFT = null; go("create-customer", {}); }
-        else if (k === "attention") go("customers", { filter: "attention" }, true);
         else if (k === "back") back();
       };
     });

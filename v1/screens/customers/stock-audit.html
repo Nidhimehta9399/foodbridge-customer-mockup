@@ -45,14 +45,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Stock Audit &amp; Health — Foodbridge Module Customer</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="stock-audit.css">
+  <link rel="stylesheet" href="stock-audit.css?v=20260822a">
 </head>
 <body>
   <div class="app sah" id="app"></div>
   <script src="icons.js"></script>
   <script src="seed.inline.js"></script>
   <script src="shell.js"></script>
-  <script src="stock-audit.js"></script>
+  <!-- ?v= busts the browser cache when this feature's own two files change —
+       they iterate faster than the rest of the module and, unlike it, ship
+       no build step to fingerprint them automatically. Bump the tag on any
+       edit to stock-audit.css/.js. -->
+  <script src="stock-audit.js?v=20260822a"></script>
   <script>SAH.mount();</script>
 </body>
 </html>
