@@ -638,9 +638,19 @@
     if (days > 5) { bucket = "overdue"; label = "Overdue"; }
     else if (days > 0) { bucket = "slipping"; label = "Slipping"; }
     else { bucket = "on_track"; label = "On Track"; }
-    return { bucket, label, lastOrderAt: sig.lastOrderAt, avgCycleDays: sig.avgCycleDays, expectedAt: expected, daysOverdue: days };
+    return { bucket, label, lastOrderAt: sig.lastOrderAt, lastOrderValue: sig.lastOrderValue, avgCycleDays: sig.avgCycleDays, expectedAt: expected, daysOverdue: days };
   }
   const ORDER_LABEL = { on_track: "On Track", slipping: "Slipping", overdue: "Overdue", unknown: "Unknown" };
+  // "In ~2 days" is what a rep can act on; a timestamp is not.
+  function expectedOrderText(order) {
+    if (!order.expectedAt) return "Unknown";
+    const days = -order.daysOverdue;
+    if (days > 1) return `In ~${days} days`;
+    if (days === 1) return "Tomorrow";
+    if (days === 0) return "Due today";
+    return `Overdue by ${plural(-days, "day")}`;
+  }
+  const money = (n) => (n == null ? "" : "₹" + Number(n).toLocaleString("en-IN"));
 
   // The four Needs-Attention triggers named in the brief: stock-out risk,
   // expiry risk, overdue audits, and customers outside their ordering cycle.
@@ -1570,8 +1580,24 @@
     const last = lastCompleted(customer._id);
     const order = orderingStatusFor(customer._id);
     const attention = last ? flaggedLines(last) : [];
+    const lastCoverage = last ? auditCoverage(last) : { audited: 0, expected: 0 };
+    // Counts, not a list — this is the "what am I walking into" line, and the
+    // products themselves are already listed under Today's Focus below.
+    const prevFindings = [];
+    if (last) {
+      const t = conditionTotals(last);
+      const oos = stockOutLines(last).length;
+      const nf = auditLines(last).filter((l) => l.status === "not_found").length;
+      if (oos) prevFindings.push(plural(oos, "product") + " at stock-out risk");
+      if (t.nearExpiry) prevFindings.push(plural(t.nearExpiry, "unit") + " near expiry");
+      if (t.expired) prevFindings.push(plural(t.expired, "unit") + " expired");
+      if (t.damaged) prevFindings.push(plural(t.damaged, "unit") + " damaged");
+      if (nf) prevFindings.push(plural(nf, "product") + " couldn't be verified");
+      if (last.partial && last.partial.isPartial) prevFindings.push("Only part of the assortment was covered");
+    }
+    // Only follow-ups nobody has closed out since.
     const issues = audits
-      .filter((a) => a.followUp && a.followUp.note)
+      .filter((a) => a.followUp && a.followUp.required && a.followUp.note)
       .slice(0, 3)
       .map((a) => ({ at: a.at, note: a.followUp.note }));
 
@@ -1582,13 +1608,25 @@
         <p class="sub">${esc(purposeMeta(DRAFT.purpose).icon)} ${esc(purposeMeta(DRAFT.purpose).label)} · ${esc(fmtDate(DRAFT.at))}</p>
       </div>
       <div class="brief-card">
-        <div class="brief-row"><span class="lbl">Last Audit</span><span class="val">${last ? esc(fmtDate(last.at)) : "Never"}${last ? `<small>${esc(purposeMeta(last.purpose).label)}</small>` : ""}</span></div>
-        <div class="brief-row"><span class="lbl">Last Order</span><span class="val">${order.lastOrderAt ? esc(fmtDateShort(order.lastOrderAt)) : "Unknown"}</span></div>
-        <div class="brief-row"><span class="lbl">Ordering Cycle</span><span class="val">${order.avgCycleDays ? `Every ~${order.avgCycleDays}d` : "Unknown"}<small>${esc(ORDER_LABEL[order.bucket])}</small></span></div>
+        <div class="brief-row"><span class="lbl">Last Audit</span><span class="val">${last ? esc(fmtDateShort(last.at)) : "Never"}${last ? `<small>${lastCoverage.audited} products · ${esc(purposeMeta(last.purpose).label)}</small>` : ""}</span></div>
+        <div class="brief-row"><span class="lbl">Last Order</span><span class="val">${order.lastOrderAt ? esc(fmtDateShort(order.lastOrderAt)) : "Unknown"}${order.lastOrderValue ? `<small>${esc(money(order.lastOrderValue))}</small>` : ""}</span></div>
+        <div class="brief-row"><span class="lbl">Typical Order Cycle</span><span class="val">${order.avgCycleDays ? `Every ~${plural(order.avgCycleDays, "day")}` : "Unknown"}</span></div>
+        <div class="brief-row"><span class="lbl">Expected Next Order</span><span class="val ${order.bucket === "overdue" ? "late" : ""}">${esc(expectedOrderText(order))}<small>${esc(ORDER_LABEL[order.bucket])}</small></span></div>
       </div>
-      ${issues.length ? `<div class="sec-label">Previous Issues</div><div class="issue-list">${issues.map((i) => `<div class="issue-item"><span class="ic">🚩</span><span>${esc(fmtDateShort(i.at))} — ${esc(i.note)}</span></div>`).join("")}</div>` : ""}
-      <div class="sec-label">Products Needing Attention</div>
-      ${attention.length ? attentionProductsHTML(attention) : `<p style="color:var(--muted);font-size:13px;margin:-4px 0 20px">Nothing flagged last visit.</p>`}
+
+      ${last ? `<div class="sec-label">Previous Findings</div>
+      <div class="rv-card">
+        ${prevFindings.length
+          ? prevFindings.map((f) => `<div class="rv-line warn"><span class="ic">•</span><span class="txt">${esc(f)}</span></div>`).join("")
+          : `<div class="rv-line ok"><span class="ic">✓</span><span class="txt">Nothing was flagged last visit.</span></div>`}
+      </div>` : ""}
+
+      ${issues.length ? `<div class="sec-label">Unresolved Follow-ups</div><div class="issue-list">${issues.map((i) => `<div class="issue-item"><span class="ic">🚩</span><span>${esc(fmtDateShort(i.at))} — ${esc(i.note)}</span></div>`).join("")}</div>` : ""}
+
+      <div class="sec-label">Today's Focus</div>
+      ${attention.length
+        ? `<p class="focus-line">${esc(plural(attention.length, "product"))} need${attention.length === 1 ? "s" : ""} checking first — they're at the top of your list.</p>${attentionProductsHTML(attention)}`
+        : `<p class="focus-line">Nothing carried over. Work the list top to bottom.</p>`}
     `, { foot: `<div class="sah-foot"><div class="inner">
         <button class="btn-wide ghost" id="briefBack">Back</button>
         <button class="btn-wide primary" id="briefGo">Begin Audit →</button>

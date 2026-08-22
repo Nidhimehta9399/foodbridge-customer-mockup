@@ -378,12 +378,12 @@
      honest: it means the platform doesn't have an ordering signal yet, not
      that everything is fine. */
   const orderingSignals = {
-    c01: { lastOrderAt: "2026-08-19", avgCycleDays: 7 },
-    c02: { lastOrderAt: "2026-08-03", avgCycleDays: 10 },
-    c03: { lastOrderAt: "2026-07-20", avgCycleDays: 14 },
-    c04: { lastOrderAt: "2026-08-17", avgCycleDays: 7 },
-    c05: { lastOrderAt: "2026-08-15", avgCycleDays: 14 },
-    c11: { lastOrderAt: "2026-08-20", avgCycleDays: 5 },
+    c01: { lastOrderAt: "2026-08-19", lastOrderValue: 48200, avgCycleDays: 7 },
+    c02: { lastOrderAt: "2026-08-03", lastOrderValue: 12400, avgCycleDays: 10 },
+    c03: { lastOrderAt: "2026-07-20", lastOrderValue: 31500, avgCycleDays: 14 },
+    c04: { lastOrderAt: "2026-08-17", lastOrderValue: 27800, avgCycleDays: 7 },
+    c05: { lastOrderAt: "2026-08-15", lastOrderValue: 96300, avgCycleDays: 14 },
+    c11: { lastOrderAt: "2026-08-20", lastOrderValue: 18900, avgCycleDays: 5 },
   };
 
   /* ---- Per-customer offers, backing the Offers drawer -------------------

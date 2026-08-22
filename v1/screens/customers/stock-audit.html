@@ -45,18 +45,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Stock Audit &amp; Health — Foodbridge Module Customer</title>
   <link rel="stylesheet" href="styles.css">
-  <link rel="stylesheet" href="stock-audit.css?v=20260823k">
+  <link rel="stylesheet" href="stock-audit.css?v=20260823l">
 </head>
 <body>
   <div class="app sah" id="app"></div>
   <script src="icons.js"></script>
-  <script src="seed.inline.js"></script>
+  <script src="seed.inline.js?v=20260823l"></script>
   <script src="shell.js"></script>
-  <!-- ?v= busts the browser cache when this feature's own two files change —
-       they iterate faster than the rest of the module and, unlike it, ship
-       no build step to fingerprint them automatically. Bump the tag on any
-       edit to stock-audit.css/.js. -->
-  <script src="stock-audit.js?v=20260823k"></script>
+  <!-- ?v= busts the browser cache. Neither GitHub Pages nor python3's
+       http.server sends Cache-Control, so without it a browser keeps serving
+       a stale copy through a real reload. It covers seed.inline.js as well as
+       this feature's own two files: Stock Audit adds stockAudits and
+       orderingSignals to the shared seed, so it goes stale for exactly the
+       same reason. Bump the tag on any edit to stock-audit.css/.js or to the
+       seed. (The other screens load the seed unversioned; they don't change
+       it, so they don't need to.) -->
+  <script src="stock-audit.js?v=20260823l"></script>
   <script>SAH.mount();</script>
 </body>
 </html>

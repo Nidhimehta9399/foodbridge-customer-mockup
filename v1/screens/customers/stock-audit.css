@@ -568,6 +568,8 @@
 .axis .na { font-size: 11px; color: var(--muted-2); margin-top: 4px; }
 
 .final-note { margin: 0; padding: 12px 0; font-size: 13px; font-style: italic; color: var(--muted); }
+.brief-row .val.late { color: var(--red); }
+.focus-line { font-size: 13px; color: var(--muted); margin: -4px 0 12px; line-height: 1.4; }
 .audit-meta { margin: 0 0 8px; font-size: 11.5px; font-weight: 700; color: var(--muted-2); text-transform: uppercase; letter-spacing: .03em; }
 
 

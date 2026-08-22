@@ -1418,30 +1418,36 @@
       }
     ]
   },
-  "_orderingSignalsNote": "Distributor-visible reorder cadence per customer, backing the Ordering Status column — synthesized for this discovery (the real signal lives in the separate Sales Orders module repo). Customers absent here show as Unknown.",
+  "_orderingSignalsNote": "Synthesized reorder-cadence signal standing in for the real one, which would live in the Sales Orders module. lastOrderAt / lastOrderValue / avgCycleDays feed Ordering Status, the expected-next-order line on the Visit Brief, and the Ordering axis of customer health.",
   "orderingSignals": {
     "c01": {
       "lastOrderAt": "2026-08-19",
+      "lastOrderValue": 48200,
       "avgCycleDays": 7
     },
     "c02": {
       "lastOrderAt": "2026-08-03",
+      "lastOrderValue": 12400,
       "avgCycleDays": 10
     },
     "c03": {
       "lastOrderAt": "2026-07-20",
+      "lastOrderValue": 31500,
       "avgCycleDays": 14
     },
     "c04": {
       "lastOrderAt": "2026-08-17",
+      "lastOrderValue": 27800,
       "avgCycleDays": 7
     },
     "c05": {
       "lastOrderAt": "2026-08-15",
+      "lastOrderValue": 96300,
       "avgCycleDays": 14
     },
     "c11": {
       "lastOrderAt": "2026-08-20",
+      "lastOrderValue": 18900,
       "avgCycleDays": 5
     }
   },
