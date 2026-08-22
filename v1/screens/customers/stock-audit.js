@@ -86,7 +86,7 @@
 
   /* --------------------------------------------------------- bottom sheet */
 
-  function sheet({ eyebrow, title, sub, actions }) {
+  function sheet({ eyebrow, title, sub, body, actions }) {
     document.querySelectorAll(".sah-sheet-scrim").forEach((n) => n.remove());
     const scrim = document.createElement("div");
     scrim.className = "sah-sheet-scrim";
@@ -94,6 +94,7 @@
       ${eyebrow ? `<div class="eyebrow">${esc(eyebrow)}</div>` : ""}
       ${title ? `<h2>${esc(title)}</h2>` : ""}
       ${sub ? `<p class="sub">${esc(sub)}</p>` : ""}
+      ${body || ""}
       <div class="sheet-acts">${(actions || [])
         .map((a, i) => `<button class="sheet-btn ${a.cls || "ghost"}" data-a="${i}">${esc(a.label)}</button>`)
         .join("")}</div>
@@ -113,7 +114,9 @@
         close();
       }),
     );
-    return { close };
+    // An action's onClick returning false keeps the sheet open, which is how
+    // a sheet with a form reports a validation failure.
+    return { close, el: scrim };
   }
 
   /* ------------------------------------------------------------- customer */
@@ -132,19 +135,88 @@
     return loadCustomers().find((c) => c._id === id) || null;
   }
 
-  // A customer's visitable locations. Most have one (their registered
-  // address); a few in the seed carry a genuinely different shipping
-  // address (e.g. store vs warehouse), which becomes a real second choice
-  // here rather than an invented field.
+  // Every audit belongs to exactly one location — stock is never mixed
+  // across two physical places in one visit. Customer-level intelligence is
+  // the aggregate of the location-level history, not a shortcut around it.
+  //
+  // Type is not decoration: it decides which questions the capture screen is
+  // allowed to ask. A warehouse has no shelf, so shelf availability and
+  // facings must not be asked there.
+  const LOCATION_TYPES = {
+    retail_store: { label: "Retail Store", icon: "🏬", shelf: true },
+    outlet: { label: "Outlet", icon: "🏪", shelf: true },
+    warehouse: { label: "Warehouse", icon: "🏭", shelf: false },
+    other: { label: "Other", icon: "📍", shelf: false },
+  };
+  const locationTypeMeta = (k) => LOCATION_TYPES[k] || LOCATION_TYPES.other;
+
+  const LOCATIONS_KEY = "fb-discovery-stock-locations-v1";
+  // Locations a rep added in the field. The customer record only knows the
+  // addresses it was set up with, and a visit to anywhere else would
+  // otherwise have nowhere to belong.
+  const LocationStore = {
+    state: {},
+    load() {
+      try {
+        this.state = JSON.parse(localStorage.getItem(LOCATIONS_KEY) || "null") || {};
+      } catch (e) {
+        this.state = {};
+      }
+      return this.state;
+    },
+    save() {
+      try {
+        localStorage.setItem(LOCATIONS_KEY, JSON.stringify(this.state));
+      } catch (e) {
+        /* private mode — the prototype still works, it just doesn't persist */
+      }
+    },
+    list(customerId) {
+      return this.state[customerId] || [];
+    },
+    add(customerId, loc) {
+      (this.state[customerId] || (this.state[customerId] = [])).push(loc);
+      this.save();
+      return loc;
+    },
+  };
+
+  // Most customers have one location — their registered address. A few in the
+  // seed carry a genuinely different shipping address (store vs warehouse),
+  // which becomes a real second choice here rather than an invented field.
   function locationsFor(c) {
-    const locs = [{ id: "primary", label: "Store / Registered Address", line: addressLine(c.adress1, c.state?.name, c.postnr) }];
+    if (!c) return [];
+    const locs = [{
+      id: "primary",
+      name: "Main Store",
+      type: "retail_store",
+      line: addressLine(c.adress1, c.state?.name, c.postnr),
+    }];
     const sameAsPrimary =
       !c.adress2 ||
       (c.adress2 === c.adress1 && (c.shippingState?.code || "") === (c.state?.code || ""));
     if (!sameAsPrimary) {
-      locs.push({ id: "shipping", label: "Warehouse / Shipping Address", line: addressLine(c.adress2, c.shippingState?.name, c.shippingPostnumber) });
+      locs.push({
+        id: "shipping",
+        name: "Warehouse",
+        type: "warehouse",
+        line: addressLine(c.adress2, c.shippingState?.name, c.shippingPostnumber),
+      });
     }
-    return locs;
+    return locs.concat(LocationStore.list(c._id));
+  }
+  function locationFor(c, id) {
+    return locationsFor(c).find((l) => l.id === id) || null;
+  }
+  // Does this location have a shelf worth asking about?
+  function locationHasShelf(c, id) {
+    const l = locationFor(c, id);
+    return l ? locationTypeMeta(l.type).shelf : true;
+  }
+  // "Acme Retail · Kothrud" — the where-am-I line every capture screen carries.
+  function placeLine(c, id) {
+    const l = locationFor(c, id);
+    return [titleCase(nameOf(c)), l && l.name].filter(Boolean).join(" · ");
   }
 
   /* --------------------------------------------------------------- audits */
@@ -364,12 +436,18 @@
   }
 
 
+  // Why the rep is standing in this store. Purpose is the one thing on the
+  // details step the system genuinely can't infer, so it's the only question
+  // asked there — everything else is auto-populated.
   const PURPOSES = [
-    { k: "routine", label: "Routine Stock Check", icon: "📋", sub: "Regular scheduled visit" },
-    { k: "followup", label: "Follow-up Visit", icon: "🔁", sub: "Returning after a flagged issue" },
-    { k: "stockout", label: "Stock-out Investigation", icon: "📉", sub: "Checking a reported shortage" },
-    { k: "preorder", label: "Pre-Order Review", icon: "🧾", sub: "Before placing next order" },
-    { k: "onboarding", label: "New Customer Onboarding", icon: "🆕", sub: "First stock count at this store" },
+    { k: "routine", label: "Routine stock check", icon: "📋", sub: "Regular scheduled visit" },
+    { k: "replenishment", label: "Replenishment check", icon: "📦", sub: "Is there enough to last the cycle?" },
+    { k: "stockout", label: "Stock-out investigation", icon: "📉", sub: "Chasing a reported shortage" },
+    { k: "shelf", label: "Shelf audit", icon: "🧺", sub: "Facings, placement and availability" },
+    { k: "expiry", label: "Expiry / pull-stock check", icon: "⏳", sub: "Rotating or pulling ageing stock" },
+    { k: "followup", label: "Follow-up visit", icon: "🔁", sub: "Returning after a flagged issue" },
+    { k: "request", label: "Customer request", icon: "📞", sub: "The store asked us to come" },
+    { k: "other", label: "Other", icon: "•", sub: "" },
   ];
   const purposeMeta = (k) => PURPOSES.find((p) => p.k === k) || { label: k || "Visit", icon: "📋" };
 
@@ -669,10 +747,36 @@
     })[CURRENT.view]?.();
   }
 
-  function startAuditFor(customerId) {
-    DRAFT = { customerId, locationId: null, purpose: "", at: new Date().toISOString().slice(0, 16), auditor: "Mahesh", notes: "", lines: {} };
-    go("create-location", { customerId });
+  function newDraft(customerId) {
+    const stamp = new Date();
+    return {
+      customerId,
+      locationId: null,
+      purpose: "",
+      at: stamp.toISOString().slice(0, 16),
+      auditor: AUDITOR.name,
+      createdAt: stamp.toISOString(),
+      startedAt: null,
+      notes: "",
+      lines: {},
+    };
   }
+
+  // Entry into the wizard from anywhere that already knows the customer.
+  // A customer with exactly one location doesn't get asked which one — the
+  // step is satisfied automatically and the details screen says so, rather
+  // than making a rep tap through a list of one.
+  function beginWizard(customerId) {
+    DRAFT = newDraft(customerId);
+    const locs = locationsFor(loadCustomer(customerId));
+    if (locs.length === 1) {
+      DRAFT.locationId = locs[0].id;
+      go("create-details", { customerId });
+    } else {
+      go("create-location", { customerId });
+    }
+  }
+  const startAuditFor = beginWizard;
 
   /* --------------------------------------------------------- persistent nav */
 
@@ -1159,10 +1263,7 @@
     `);
 
     wireSearchInput("pickQ", (v) => { PICK_STATE.q = v; renderCreateCustomer(); });
-    PAGE.querySelectorAll("[data-pick]").forEach((b) => (b.onclick = () => {
-      DRAFT = { customerId: b.dataset.pick, locationId: null, purpose: "", at: new Date().toISOString().slice(0, 16), auditor: "Mahesh", notes: "", lines: {} };
-      go("create-location", { customerId: b.dataset.pick });
-    }));
+    PAGE.querySelectorAll("[data-pick]").forEach((b) => (b.onclick = () => beginWizard(b.dataset.pick)));
   }
 
   /* ================================================================= VIEW: create-location (wizard step 2) */
@@ -1170,7 +1271,7 @@
   function renderCreateLocation() {
     const customer = loadCustomer(CURRENT.params.customerId);
     if (!customer) { go("create-customer", {}, true); return; }
-    if (!DRAFT) DRAFT = { customerId: customer._id, locationId: null, purpose: "", at: new Date().toISOString().slice(0, 16), auditor: "Mahesh", notes: "", lines: {} };
+    if (!DRAFT) DRAFT = newDraft(customer._id);
     const locs = locationsFor(customer);
     if (!DRAFT.locationId && locs.length === 1) DRAFT.locationId = locs[0].id;
 
@@ -1178,20 +1279,59 @@
       ${wizardStepsHTML(2)}
       <p class="wizard-label">Create Audit · Step 2 of 3 · ${esc(titleCase(nameOf(customer)))}</p>
       <h2 class="wizard-title">Select Location</h2>
-      <p class="wizard-sub">Which of this customer's locations are you visiting?</p>
-      ${locs.map((l) => `
-        <button type="button" class="location-card ${DRAFT.locationId === l.id ? "on" : ""}" data-loc="${l.id}">
-          <span class="ic">${l.id === "shipping" ? "🏭" : "🏬"}</span>
-          <span><div class="nm">${esc(l.label)}</div><div class="sub">${esc(l.line)}</div></span>
-        </button>`).join("")}
+      <p class="wizard-sub">Where are you visiting?</p>
+      ${locs.map((l) => locationCardHTML(l, DRAFT.locationId === l.id)).join("")}
+      <button type="button" class="add-location" id="addLoc">+ Add Location</button>
     `, { foot: `<div class="sah-foot"><div class="inner">
         <button class="btn-wide ghost" id="locBack">Back</button>
         <button class="btn-wide primary" id="locNext" ${DRAFT.locationId ? "" : "disabled"}>Continue</button>
       </div></div>` });
 
     PAGE.querySelectorAll("[data-loc]").forEach((b) => (b.onclick = () => { DRAFT.locationId = b.dataset.loc; renderCreateLocation(); }));
+    $("#addLoc", PAGE).onclick = () => addLocationSheet(customer, (loc) => { DRAFT.locationId = loc.id; renderCreateLocation(); });
     $("#locBack", PAGE).onclick = back;
     $("#locNext", PAGE).onclick = () => { if (DRAFT.locationId) go("create-details", { customerId: customer._id }); };
+  }
+
+  function locationCardHTML(l, on) {
+    const t = locationTypeMeta(l.type);
+    return `
+      <button type="button" class="location-card ${on ? "on" : ""}" data-loc="${esc(l.id)}">
+        <span class="ic">${t.icon}</span>
+        <span><div class="nm">${esc(l.name)}</div><div class="type">${esc(t.label)}</div><div class="sub">${esc(l.line)}</div></span>
+      </button>`;
+  }
+
+  function addLocationSheet(customer, onAdded) {
+    const s = sheet({
+      eyebrow: titleCase(nameOf(customer)),
+      title: "Add Location",
+      sub: "For a place this customer trades from that isn't on their record yet.",
+      body: `<div class="sheet-form">
+        <label>Location name<input type="text" id="newLocName" placeholder="e.g. Baner Store" autocomplete="off"></label>
+        <label>Type<select id="newLocType">${Object.keys(LOCATION_TYPES).map((k) => `<option value="${k}">${esc(LOCATION_TYPES[k].label)}</option>`).join("")}</select></label>
+        <label>Area / address<input type="text" id="newLocLine" placeholder="e.g. Baner Road, Pune" autocomplete="off"></label>
+      </div>`,
+      actions: [
+        { label: "Cancel", cls: "ghost" },
+        {
+          label: "Add Location",
+          cls: "primary",
+          onClick: () => {
+            const name = s.el.querySelector("#newLocName").value.trim();
+            if (!name) { toast("Give the location a name.", "info"); return false; }
+            const loc = LocationStore.add(customer._id, {
+              id: "loc-" + Date.now().toString(36),
+              name,
+              type: s.el.querySelector("#newLocType").value,
+              line: s.el.querySelector("#newLocLine").value.trim() || "No address on file",
+            });
+            toast("Location added.");
+            onAdded(loc);
+          },
+        },
+      ],
+    });
   }
 
   /* ================================================================= VIEW: create-details (wizard step 3) */
@@ -1199,6 +1339,10 @@
   function renderCreateDetails() {
     const customer = loadCustomer(CURRENT.params.customerId);
     if (!customer || !DRAFT) { go("create-customer", {}, true); return; }
+    const locs = locationsFor(customer);
+    const manyLocations = locs.length > 1;
+    const loc = locationFor(customer, DRAFT.locationId);
+    const locMeta = locationTypeMeta(loc && loc.type);
 
     frame(`
       ${wizardStepsHTML(3)}
@@ -1207,13 +1351,18 @@
       <p class="wizard-sub">What's the reason for this visit?</p>
       <div class="purpose-grid">${PURPOSES.map((p) => `
         <button type="button" class="purpose-card ${DRAFT.purpose === p.k ? "on" : ""}" data-purpose="${p.k}">
-          <span class="ic">${p.icon}</span><span class="nm">${esc(p.label)}</span><span class="sub">${esc(p.sub)}</span>
+          <span class="ic">${p.icon}</span>
+          <span class="txt"><span class="nm">${esc(p.label)}</span>${p.sub ? `<span class="sub">${esc(p.sub)}</span>` : ""}</span>
+          <span class="tick">✓</span>
         </button>`).join("")}
       </div>
+      <label class="visit-note">Visit note
+        <textarea id="draftNote" placeholder="Optional — anything worth knowing before the count">${esc(DRAFT.notes || "")}</textarea>
+      </label>
       <div class="info-card">
+        <div class="info-row"><span class="ic">${locMeta.icon}</span><span class="lbl">Location</span><span class="val">${esc(loc ? loc.name : "—")}<small>${esc(loc ? locMeta.label : "")}${manyLocations ? "" : " · only location on file"}</small></span>${manyLocations ? `<button type="button" class="row-link" id="changeLoc">Change</button>` : ""}</div>
         <div class="info-row"><span class="ic">📅</span><span class="lbl">Date &amp; Time</span><span class="val"><input type="datetime-local" id="draftAt" value="${esc(DRAFT.at)}" style="border:none;background:none;font:inherit;font-weight:700;text-align:right"></span></div>
-        <div class="info-row"><span class="ic">🧑‍💼</span><span class="lbl">Auditor</span><span class="val">Mahesh</span></div>
-        <div class="info-row"><span class="ic">🏷️</span><span class="lbl">Role · Team</span><span class="val">Field Auditor · Distribution Team</span></div>
+        <div class="info-row"><span class="ic">🧑‍💼</span><span class="lbl">Auditor</span><span class="val">${esc(AUDITOR.name)}<small>${esc(AUDITOR.role)} · ${esc(AUDITOR.team)}</small></span></div>
       </div>
     `, { foot: `<div class="sah-foot"><div class="inner">
         <button class="btn-wide ghost" id="detBack">Back</button>
@@ -1222,6 +1371,9 @@
 
     PAGE.querySelectorAll("[data-purpose]").forEach((b) => (b.onclick = () => { DRAFT.purpose = b.dataset.purpose; renderCreateDetails(); }));
     $("#draftAt", PAGE).oninput = (e) => (DRAFT.at = e.target.value);
+    $("#draftNote", PAGE).oninput = (e) => (DRAFT.notes = e.target.value);
+    const changeLoc = $("#changeLoc", PAGE);
+    if (changeLoc) changeLoc.onclick = () => go("create-location", { customerId: customer._id });
     $("#detBack", PAGE).onclick = back;
     $("#detNext", PAGE).onclick = () => { if (DRAFT.purpose) go("brief", { customerId: customer._id }); };
   }
@@ -1243,7 +1395,7 @@
     frame(`
       <div class="sah-hero">
         <p class="eyebrow">Visit Brief</p>
-        <h1>${esc(titleCase(nameOf(customer)))}</h1>
+        <h1>${esc(placeLine(customer, DRAFT.locationId))}</h1>
         <p class="sub">${esc(purposeMeta(DRAFT.purpose).icon)} ${esc(purposeMeta(DRAFT.purpose).label)} · ${esc(fmtDate(DRAFT.at))}</p>
       </div>
       <div class="brief-card">
@@ -1310,7 +1462,7 @@
     frame(`
       <div class="sah-hero">
         <button type="button" class="back" id="wsBack">← ${esc(titleCase(nameOf(customer)))}</button>
-        <div class="row"><div><p class="eyebrow">Audit Workspace</p><h1>Count What's On The Shelf</h1><p class="sub">${esc(purposeMeta(DRAFT.purpose).label)}</p></div></div>
+        <div class="row"><div><p class="eyebrow">Audit Workspace · ${esc(placeLine(customer, DRAFT.locationId))}</p><h1>Count What's On The Shelf</h1><p class="sub">${esc(purposeMeta(DRAFT.purpose).label)}</p></div></div>
       </div>
       <div class="cap-progress"><span class="txt">${entered} / ${products.length} captured</span><div class="bar"><span style="width:${pct}%"></span></div></div>
       <div class="sah-search-row">
@@ -1492,7 +1644,7 @@
     const acts = recommendedActions(a);
 
     frame(`
-      <div class="sah-page-head"><div class="row"><div><h1>Audit Complete</h1><p>${esc(titleCase(nameOf(customer)))} · ${esc(fmtDate(a.at))}</p></div></div></div>
+      <div class="sah-page-head"><div class="row"><div><h1>Audit Complete</h1><p>${esc(placeLine(customer, a.locationId))} · ${esc(fmtDate(a.at))}</p></div></div></div>
 
       <div class="score-card">
         <div class="score-ring ${score.cls}">${score.score}</div>
@@ -1535,6 +1687,7 @@
 
   function mount() {
     PAGE = mountShell($("#app"), { screen: "stock-audit", crumb: "Stock Audit & Health", tenant: SEED.tenant });
+    LocationStore.load();
     AuditStore.load();
 
     const params = new URLSearchParams(location.search);

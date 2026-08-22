@@ -26,7 +26,11 @@
    deliberate no-webfont stance; see styles.css's header comment.
    ========================================================================== */
 
-.sah {
+/* Tokens live on :root, not on .sah — the bottom sheet and the toast are
+   appended to <body>, outside .sah, and a token that doesn't resolve there
+   silently computes to nothing: `background: var(--teal)` becomes
+   transparent, and a button ends up white-on-white rather than teal. */
+:root, .sah {
   --teal: #12615e; --teal-d: #0e4f4c; --teal-l: #e6f2f1;
   --green: #16a34a; --green-d: #15803d;
   --blue: #2563eb; --navy: #3b5aa6; --red: #c53434; --orange: #d08420;
@@ -290,23 +294,39 @@
 .location-card { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1.5px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 10px; width: 100%; text-align: left; }
 .location-card .ic { font-size: 20px; flex-shrink: 0; }
 .location-card .nm { font-weight: 700; font-size: 13.5px; }
+.location-card .type { font-size: 11px; font-weight: 700; color: var(--teal); text-transform: uppercase; letter-spacing: .03em; margin-top: 3px; }
 .location-card .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .location-card.on { border-color: var(--teal); background: var(--teal-l); }
+/* Deliberately quieter than a location card — adding one is the rare path. */
+.add-location { width: 100%; padding: 13px; border: 1.5px dashed var(--line); border-radius: 12px; background: none; color: var(--muted); font-size: 13px; font-weight: 700; margin-top: 2px; }
+.add-location:hover { border-color: var(--teal); color: var(--teal); }
 
-.purpose-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-@media (max-width: 420px) { .purpose-grid { grid-template-columns: 1fr; } }
-.purpose-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; background: var(--card); border: 1.5px solid var(--line); border-radius: 12px; padding: 14px; text-align: left; }
-.purpose-card .ic { font-size: 20px; }
-.purpose-card .nm { font-weight: 700; font-size: 13px; color: var(--ink); }
-.purpose-card .sub { font-size: 11px; color: var(--muted); line-height: 1.3; }
+/* A radio list, not a card grid: one row per option, so all eight fit the
+   thumb's reach instead of costing two screens of scrolling. */
+.purpose-grid { display: flex; flex-direction: column; gap: 8px; }
+.purpose-card { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1.5px solid var(--line); border-radius: 12px; padding: 11px 14px; text-align: left; width: 100%; }
+.purpose-card .ic { font-size: 17px; width: 22px; text-align: center; flex-shrink: 0; }
+.purpose-card .txt { flex: 1; min-width: 0; }
+.purpose-card .nm { display: block; font-weight: 700; font-size: 13.5px; color: var(--ink); }
+.purpose-card .sub { display: block; font-size: 11.5px; color: var(--muted); line-height: 1.3; margin-top: 1px; }
+.purpose-card .tick { font-size: 13px; font-weight: 800; color: var(--teal); opacity: 0; flex-shrink: 0; }
 .purpose-card.on { border-color: var(--teal); background: var(--teal-l); }
+.purpose-card.on .tick { opacity: 1; }
 
 .info-card { background: var(--slate-50); border: 1px solid var(--line); border-radius: 12px; padding: 4px 14px; margin: 18px 0; }
 .info-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
 .info-row:last-child { border-bottom: none; }
 .info-row .ic { font-size: 16px; width: 22px; text-align: center; flex-shrink: 0; }
 .info-row .lbl { font-size: 11.5px; color: var(--muted); flex: 1; }
-.info-row .val { font-size: 13px; font-weight: 700; color: var(--ink); }
+.info-row .val { font-size: 13px; font-weight: 700; color: var(--ink); text-align: right; }
+.info-row .val small { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-top: 2px; }
+.row-link { background: none; border: none; color: var(--teal); font-size: 12px; font-weight: 700; padding: 0 0 0 12px; flex-shrink: 0; }
+
+/* A visit note belongs with the rest of the visit's details, not bolted to
+   the end of the count screen where it competes with the products. */
+.visit-note { display: block; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted-2); margin-top: 18px; }
+.visit-note textarea { display: block; width: 100%; margin-top: 8px; min-height: 62px; resize: vertical; padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); font: inherit; font-size: 13px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--ink); }
+.visit-note textarea:focus { outline: none; border-color: var(--teal); }
 
 /* ── Visit Brief ──────────────────────────────────────────────────────────── */
 .brief-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 4px 16px; margin-bottom: 18px; }
@@ -440,6 +460,10 @@
 .sah-sheet .eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted-2); }
 .sah-sheet h2 { margin: 4px 0 0; font-size: 19px; }
 .sah-sheet p.sub { margin: 6px 0 0; color: var(--muted); font-size: 13.5px; }
+.sheet-form { margin-top: 18px; display: flex; flex-direction: column; gap: 12px; }
+.sheet-form label { display: block; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted-2); }
+.sheet-form input, .sheet-form select { display: block; width: 100%; margin-top: 6px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font: inherit; font-size: 13.5px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--ink); }
+.sheet-form input:focus, .sheet-form select:focus { outline: none; border-color: var(--teal); }
 .sheet-acts { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
 .sheet-btn { height: 48px; border-radius: 12px; font-weight: 700; font-size: 14.5px; border: none; }
 .sheet-btn.primary { background: var(--teal); color: #fff; }
