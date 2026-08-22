@@ -526,6 +526,17 @@
 .rv-issue .pn { flex: 1; min-width: 0; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rv-link { display: block; margin-left: 28px; background: none; border: none; padding: 4px 0; font-size: 12.5px; font-weight: 700; color: var(--teal); }
 
+/* ── Closure ─────────────────────────────────────────────────────────────── */
+.cl-coverage { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 18px; }
+.cl-coverage .lbl { display: block; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted-2); }
+.cl-coverage b { display: block; font-size: 19px; font-weight: 800; color: var(--ink); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.cl-coverage .why { display: block; font-size: 12px; color: var(--green-d); margin-top: 3px; font-weight: 600; }
+.cl-coverage.partial { border-color: #fcd34d; background: #fffbeb; }
+.cl-coverage.partial .why { color: var(--amber-tx); }
+/* The system's own reading of the visit, marked as a suggestion so the rep
+   knows it's theirs to overrule. */
+.purpose-card .nm em { font-style: normal; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--teal); background: var(--teal-l); border-radius: 999px; padding: 2px 6px; margin-left: 5px; vertical-align: 1px; }
+
 /* ── Complete Audit summary ──────────────────────────────────────────────── */
 .score-card { display: flex; align-items: center; gap: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-bottom: 18px; }
 .score-ring {

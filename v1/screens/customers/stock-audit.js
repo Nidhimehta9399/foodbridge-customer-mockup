@@ -49,6 +49,7 @@
 
   const nameOf = (c) => (c && (typeof c.name === "object" ? c.name?.en : c.name)) || "";
   const clone = (v) => JSON.parse(JSON.stringify(v));
+  const plural = (n, word) => n + " " + word + (n === 1 ? "" : "s");
   const now = () => new Date();
   const DAY = 86400000;
 
@@ -813,6 +814,7 @@
       workspace: renderWorkspace,
       product: renderProduct,
       review: renderReview,
+      closure: renderClosure,
       complete: renderComplete,
     })[CURRENT.view]?.();
   }
@@ -2295,7 +2297,110 @@
   }
 
   function finishAudit(customer) {
-    completeAudit(customer);
+    go("closure", { customerId: customer._id });
+  }
+
+  /* ================================================================= VIEW: closure */
+
+  // How this visit ended, in the distributor's terms rather than the shelf's.
+  const OUTCOMES = [
+    { k: "healthy", label: "Healthy", icon: "✅", sub: "Nothing needed here" },
+    { k: "replenish", label: "Needs replenishment", icon: "📦", sub: "Stock is running out" },
+    { k: "pull", label: "Stock pull required", icon: "🧹", sub: "Expired or damaged stock to remove" },
+    { k: "followup", label: "Needs follow-up", icon: "🚩", sub: "Something to come back for" },
+    { k: "investigate", label: "Further investigation", icon: "🔍", sub: "The numbers don't add up" },
+  ];
+  const outcomeMeta = (k) => OUTCOMES.find((o) => o.k === k) || { label: "—", icon: "•", sub: "" };
+
+  // The system does the interpreting; the rep confirms or overrides it. Making
+  // someone who has just counted fifty products also classify the visit from
+  // a blank slate is work the findings already answered.
+  function suggestedOutcome(a) {
+    const totals = conditionTotals(a);
+    if (stockOutLines(a).length) return "replenish";
+    if (totals.expired > 0 || totals.damaged > 0) return "pull";
+    if (auditLines(a).some((l) => l.status === "not_found") || followUpLines(a).length) return "followup";
+    const audited = auditLines(a).filter((l) => l.status === "audited");
+    if (audited.length && varianceLines(a).length > audited.length / 2) return "investigate";
+    return "healthy";
+  }
+
+  function renderClosure() {
+    const customer = loadCustomer(CURRENT.params.customerId);
+    if (!customer || !DRAFT) { go("customers", {}, true); return; }
+
+    const a = draftAsAudit(customer);
+    const cov = auditCoverage(a);
+    const totals = conditionTotals(a);
+    const shelfIssues = auditLines(a).filter((l) => l.shelfAvailability && l.shelfAvailability !== "available").length;
+    const followUps = followUpLines(a);
+    if (!DRAFT.outcome) DRAFT.outcome = suggestedOutcome(a);
+    const suggested = suggestedOutcome(a);
+
+    // The plural has to land on the noun, not the end of the phrase — "2 unit
+    // expireds" is the kind of thing that makes a prototype look unfinished.
+    const findings = [
+      { n: varianceLines(a).length, text: (n) => plural(n, "stock variance") },
+      { n: stockOutLines(a).length, text: (n) => plural(n, "stock-out risk") },
+      { n: totals.nearExpiry, text: (n) => plural(n, "unit") + " near expiry" },
+      { n: totals.expired, text: (n) => plural(n, "unit") + " expired" },
+      { n: totals.damaged, text: (n) => plural(n, "unit") + " damaged" },
+      { n: shelfIssues, text: (n) => plural(n, "shelf issue") },
+    ].filter((f) => f.n > 0);
+
+    frame(`
+      <div class="sah-page-head">
+        <h1>Complete Audit</h1><p>${esc(placeLine(customer, DRAFT.locationId))} · ${esc(purposeMeta(DRAFT.purpose).label)}</p>
+      </div>
+
+      <div class="cl-coverage ${DRAFT.partial && DRAFT.partial.isPartial ? "partial" : ""}">
+        <span class="lbl">Audit coverage</span>
+        <b>${cov.audited} / ${cov.expected} products</b>
+        ${DRAFT.partial && DRAFT.partial.isPartial
+          ? `<span class="why">Partial — ${esc((PARTIAL_REASONS.find((r) => r.k === DRAFT.partial.reason) || { label: "reason not given" }).label.toLowerCase())}</span>`
+          : `<span class="why">Full coverage</span>`}
+      </div>
+
+      <div class="sec-label">Findings</div>
+      <div class="rv-card">
+        ${findings.length
+          ? findings.map((f) => `<div class="rv-line warn"><span class="ic">•</span><span class="txt">${esc(f.text(f.n))}</span></div>`).join("")
+          : `<div class="rv-line ok"><span class="ic">✓</span><span class="txt">Nothing flagged — the shelf looked healthy.</span></div>`}
+      </div>
+
+      ${followUps.length ? `<div class="sec-label">Required actions</div>
+      <div class="rv-card">
+        <div class="rv-line warn"><span class="ic">🚩</span><span class="txt">${followUps.length} product${followUps.length === 1 ? "" : "s"} require follow-up</span></div>
+        <div class="rv-issues">${followUps.map((l) => `
+          <div class="rv-issue"><span class="pn">${esc(productName(l.productId))}</span><span class="status-tag ${followUpReason(l).cls}">${esc(followUpReason(l).label)}</span></div>`).join("")}
+          <button type="button" class="rv-link" id="clReview">Review these products ›</button>
+        </div>
+      </div>` : ""}
+
+      <div class="sec-label">Visit outcome</div>
+      <div class="purpose-grid">
+        ${OUTCOMES.map((o) => `
+          <button type="button" class="purpose-card ${DRAFT.outcome === o.k ? "on" : ""}" data-outcome="${o.k}">
+            <span class="ic">${o.icon}</span>
+            <span class="txt"><span class="nm">${esc(o.label)}${o.k === suggested ? ` <em>suggested</em>` : ""}</span><span class="sub">${esc(o.sub)}</span></span>
+            <span class="tick">✓</span>
+          </button>`).join("")}
+      </div>
+
+      <label class="visit-note">Final note
+        <textarea id="clNote" placeholder="Optional — anything the next visit should know">${esc(DRAFT.finalNote || "")}</textarea>
+      </label>
+    `, { foot: `<div class="sah-foot"><div class="inner">
+        <button class="btn-wide ghost" id="clBack">Back</button>
+        <button class="btn-wide primary" id="clDone">Complete Audit</button>
+      </div></div>` });
+
+    PAGE.querySelectorAll("[data-outcome]").forEach((b) => (b.onclick = () => { DRAFT.outcome = b.dataset.outcome; renderClosure(); }));
+    const rev = $("#clReview", PAGE);
+    if (rev) rev.onclick = () => { WS_STATE.tab = "attention"; WS_STATE.q = ""; go("workspace", { customerId: customer._id }, true); };
+    $("#clNote", PAGE).oninput = (e) => (DRAFT.finalNote = e.target.value);
+    $("#clBack", PAGE).onclick = back;
+    $("#clDone", PAGE).onclick = () => completeAudit(customer);
   }
 
   /* ------------------------------------------------------- complete audit */
@@ -2325,6 +2430,8 @@
       // coverage of a visit that is already closed.
       expectedProducts: products.length,
       notes: (DRAFT.notes || "").trim(),
+      outcome: DRAFT.outcome || null,
+      finalNote: (DRAFT.finalNote || "").trim(),
       partial: DRAFT.partial || { isPartial: false, reason: null, note: "" },
       lines,
       followUp: { required: false, note: "", at: "" },
