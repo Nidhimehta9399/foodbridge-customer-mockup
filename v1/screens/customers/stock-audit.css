@@ -549,6 +549,28 @@
 .score-card .lbl { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted-2); }
 .score-card .desc { font-size: 15px; font-weight: 800; color: var(--ink); margin-top: 2px; }
 .score-card .sub { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.score-card .outcome { display: inline-block; margin-top: 8px; font-size: 11.5px; font-weight: 800; color: var(--teal); background: var(--teal-l); border-radius: 999px; padding: 4px 10px; }
+
+/* Four axes rather than one number: 72 doesn't tell a rep whether to bring
+   stock or rotate it, and these do. An axis this visit couldn't measure
+   shows a dash and an empty track rather than a zero, which would read as a
+   failing score for a question nobody asked. */
+.axes { display: flex; flex-direction: column; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 15px 16px; margin-bottom: 18px; }
+.axis .hd { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
+.axis .hd span { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.axis .hd b { font-size: 14px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+.axis .bar { height: 7px; border-radius: 4px; background: var(--slate-100); overflow: hidden; }
+.axis .bar > span { display: block; height: 100%; border-radius: 4px; background: var(--muted-2); }
+.axis.good .bar > span { background: var(--green); }
+.axis.fair .bar > span { background: var(--orange); }
+.axis.poor .bar > span { background: var(--red); }
+.axis.good .hd b { color: var(--green-d); }
+.axis.fair .hd b { color: var(--orange); }
+.axis.poor .hd b { color: var(--red); }
+.axis.none .hd b { color: var(--muted-2); }
+.axis .na { font-size: 11px; color: var(--muted-2); margin-top: 4px; }
+
+.final-note { margin: 0; padding: 12px 0; font-size: 13px; font-style: italic; color: var(--muted); }
 
 .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
 .summary-tile { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
@@ -562,6 +584,14 @@
 .action-item .txt { flex: 1; font-size: 12.5px; color: var(--ink); line-height: 1.35; }
 .action-item .txt b { display: block; font-size: 13px; }
 .action-item button { flex-shrink: 0; height: 30px; padding: 0 12px; border-radius: 8px; border: 1.5px solid var(--teal); background: #fff; color: var(--teal); font-size: 11.5px; font-weight: 700; }
+.action-item button:disabled { border-color: var(--line); color: var(--muted-2); }
+/* Severity as a left edge rather than a full colour wash — the list stays
+   scannable in order without three competing background colours. */
+.action-item { border-left-width: 4px; }
+.action-item.sev-high { border-left-color: var(--red); }
+.action-item.sev-mid { border-left-color: var(--orange); }
+.action-item.sev-low { border-left-color: var(--muted-2); }
+.action-item.sev-none { border-left-color: var(--green); }
 
 /* ── Fixed sticky action bar (sits ABOVE the persistent nav) ─────────────── */
 .sah-foot {

@@ -2451,6 +2451,23 @@
     const label = score >= 80 ? "Healthy Customer" : score >= 55 ? "Fair — Keep An Eye On It" : "Needs Attention";
     return { score, cls, label };
   }
+  const axisCls = (v) => (v == null ? "none" : v >= 85 ? "good" : v >= 65 ? "fair" : "poor");
+
+  // Stock / Shelf / Expiry / Ordering, shown as four bars rather than folded
+  // into the one number above them. A rep looking at 72 needs to know whether
+  // to bring stock or rotate it.
+  function healthAxesHTML(a) {
+    const hb = healthBreakdown(a);
+    return `<div class="axes">${HEALTH_AXES.map((ax) => {
+      const v = hb[ax.k];
+      return `<div class="axis ${axisCls(v)}">
+        <div class="hd"><span>${esc(ax.label)}</span><b>${v == null ? "—" : v}</b></div>
+        <div class="bar"><span style="width:${v == null ? 0 : v}%"></span></div>
+        ${v == null ? `<div class="na">Not measured on this visit</div>` : ""}
+      </div>`;
+    }).join("")}</div>`;
+  }
+
   function shelfHealthPct(a) {
     const rated = a.lines.filter((l) => l.status === "audited" && l.shelfAvailability);
     // null, not 100: a warehouse visit rates no shelves, and reporting a
@@ -2459,17 +2476,31 @@
     const pts = rated.reduce((s, l) => s + (l.shelfAvailability === "available" ? 1 : l.shelfAvailability === "partial" ? 0.5 : 0), 0);
     return Math.round((pts / rated.length) * 100);
   }
+
+  // What to actually do next, in severity order, with the products named.
+  // The count is the input; this is the point of having taken it.
   function recommendedActions(a) {
-    const oos = stockOutLines(a).map((l) => productName(l.productId));
-    const bad = a.lines.filter((l) => lineAtRisk(l) > 0).map((l) => productName(l.productId));
-    const over = a.lines.filter(isOverstock).map((l) => productName(l.productId));
     const acts = [];
-    if (oos.length) acts.push({ ic: "📦", title: "Replenish", text: oos.join(", ") });
-    if (bad.length) acts.push({ ic: "🧹", title: "Pull &amp; rotate stock", text: bad.join(", ") });
-    if (over.length) acts.push({ ic: "📉", title: "Slow-moving / overstock", text: over.join(", ") + " — consider a push offer" });
-    if (a.followUp && a.followUp.required) acts.push({ ic: "🚩", title: "Follow-up scheduled", text: a.followUp.note || "Return visit flagged", done: true });
-    else if (flaggedLines(a).length) acts.push({ ic: "🚩", title: "Consider a follow-up visit", text: "This audit found flagged items.", flag: a.id });
-    if (!acts.length) acts.push({ ic: "✅", title: "All clear", text: "No issues found — shelf looks healthy." });
+    const oos = stockOutLines(a).map((l) => productName(l.productId));
+    const expiring = auditLines(a).filter((l) => (l.conditionBreakdown.expired || 0) + (l.conditionBreakdown.nearExpiry || 0) > 0).map((l) => productName(l.productId));
+    const damaged = auditLines(a).filter((l) => (l.conditionBreakdown.damaged || 0) > 0).map((l) => productName(l.productId));
+    const notFound = auditLines(a).filter((l) => l.status === "not_found").map((l) => productName(l.productId));
+    const over = auditLines(a).filter(isOverstock).map((l) => productName(l.productId));
+
+    if (oos.length) acts.push({ sev: "high", ic: "📦", title: "Replenish", text: plural(oos.length, "product") + " below expected stock — " + oos.join(", "), replenish: true });
+    if (expiring.length) acts.push({ sev: "mid", ic: "🧹", title: "Pull / rotate", text: plural(expiring.length, "product") + " approaching or past expiry — " + expiring.join(", ") });
+    if (damaged.length) acts.push({ sev: "mid", ic: "⚠️", title: "Raise damage claim", text: damaged.join(", ") });
+    if (notFound.length) acts.push({ sev: "mid", ic: "❓", title: "Verify next visit", text: plural(notFound.length, "product") + " couldn't be checked — " + notFound.join(", ") });
+    if (over.length) acts.push({ sev: "low", ic: "📉", title: "Slow-moving / overstock", text: over.join(", ") + " — consider a push offer" });
+
+    if (a.followUp && a.followUp.required) acts.push({ sev: "mid", ic: "🚩", title: "Follow-up scheduled", text: a.followUp.note || "Return visit flagged", done: true });
+    else if (flaggedLines(a).length) acts.push({ sev: "low", ic: "🚩", title: "Consider a follow-up visit", text: "This audit found flagged items.", flag: a.id });
+
+    if (a.partial && a.partial.isPartial) {
+      const why = (PARTIAL_REASONS.find((r) => r.k === a.partial.reason) || { label: "reason not given" }).label;
+      acts.push({ sev: "low", ic: "🕓", title: "Finish the coverage", text: `Only part of the assortment was checked — ${why.toLowerCase()}.` });
+    }
+    if (!acts.length) acts.push({ sev: "none", ic: "✅", title: "All clear", text: "No issues found — the shelf looked healthy." });
     return acts;
   }
 
@@ -2480,40 +2511,58 @@
     if (!customer || !a) { go("customers", {}, true); return; }
 
     const score = computeAuditScore(a);
-    const oosCount = stockOutLines(a).length;
-    const overCount = a.lines.filter(isOverstock).length;
-    const expiryCount = expiryLines(a).length;
+    const cov = auditCoverage(a);
+    const audited = auditLines(a).filter((l) => l.status === "audited");
+    const matched = audited.filter((l) => lineVariance(l) === 0 && !isStockOutRisk(l) && dominantCondition(l) === "ok").length;
+    const totals = conditionTotals(a);
     const shelfPct = shelfHealthPct(a);
     const acts = recommendedActions(a);
+    const out = a.outcome ? outcomeMeta(a.outcome) : null;
 
     frame(`
-      <div class="sah-page-head"><div class="row"><div><h1>Audit Complete</h1><p>${esc(placeLine(customer, a.locationId))} · ${esc(fmtDate(a.at))}</p></div></div></div>
+      <div class="sah-page-head">
+        <h1>Audit Complete ✓</h1>
+        <p>${esc(placeLine(customer, a.locationId))} · ${esc(fmtDate(a.at))}<br>${esc(a.auditor || AUDITOR.name)} · ${esc(purposeMeta(a.purpose).label)}</p>
+      </div>
 
       <div class="score-card">
         <div class="score-ring ${score.cls}">${score.score}</div>
-        <div><div class="lbl">Customer Health Score</div><div class="desc">${esc(score.label)}</div><div class="sub">${a.lines.length} product${a.lines.length === 1 ? "" : "s"} counted this visit</div></div>
+        <div>
+          <div class="lbl">Customer Health Score</div>
+          <div class="desc">${esc(score.label)}</div>
+          <div class="sub">${cov.audited} of ${cov.expected} products counted${a.partial && a.partial.isPartial ? " · partial visit" : ""}</div>
+          ${out ? `<div class="outcome">${out.icon} ${esc(out.label)}</div>` : ""}
+        </div>
       </div>
 
-      <div class="sec-label">Summary</div>
-      <div class="summary-grid">
-        <div class="summary-tile ${oosCount ? "flag" : ""}"><div class="n">${oosCount}</div><div class="l">Stock-out risk</div></div>
-        <div class="summary-tile ${overCount ? "flag" : ""}"><div class="n">${overCount}</div><div class="l">Overstock</div></div>
-        <div class="summary-tile ${expiryCount ? "flag" : ""}"><div class="n">${expiryCount}</div><div class="l">Expiry risk</div></div>
-        <div class="summary-tile"><div class="n">${shelfPct == null ? "—" : shelfPct + "%"}</div><div class="l">Shelf availability</div></div>
+      <div class="sec-label">Health Breakdown</div>
+      ${healthAxesHTML(a)}
+
+      <div class="sec-label">What This Visit Found</div>
+      <div class="rv-card">
+        <div class="rv-line ${matched ? "ok" : "muted"}"><span class="ic">✓</span><span class="txt">Matched</span><b>${matched}</b></div>
+        <div class="rv-line ${varianceLines(a).length ? "warn" : "muted"}"><span class="ic">⚠</span><span class="txt">Variances</span><b>${varianceLines(a).length}</b></div>
+        <div class="rv-line ${stockOutLines(a).length ? "danger" : "muted"}"><span class="ic">●</span><span class="txt">Stock-out risks</span><b>${stockOutLines(a).length}</b></div>
+        <div class="rv-line ${totals.nearExpiry ? "nearExpiry" : "muted"}"><span class="ic">⏰</span><span class="txt">Units near expiry</span><b>${totals.nearExpiry}</b></div>
+        <div class="rv-line ${totals.expired ? "expired" : "muted"}"><span class="ic">⏳</span><span class="txt">Units expired</span><b>${totals.expired}</b></div>
+        <div class="rv-line ${totals.damaged ? "damaged" : "muted"}"><span class="ic">⚠️</span><span class="txt">Units damaged</span><b>${totals.damaged}</b></div>
+        <div class="rv-line ${shelfPct == null ? "muted" : shelfPct >= 90 ? "ok" : "warn"}"><span class="ic">🧺</span><span class="txt">Shelf availability</span><b>${shelfPct == null ? "—" : shelfPct + "%"}</b></div>
       </div>
+
+      ${a.finalNote ? `<div class="sec-label">Final Note</div><div class="rv-card"><p class="final-note">"${esc(a.finalNote)}"</p></div>` : ""}
 
       <div class="sec-label">Recommended Actions</div>
       <div class="action-list">
         ${acts.map((x) => `
-          <div class="action-item">
+          <div class="action-item sev-${x.sev}">
             <span class="ic">${x.ic}</span>
-            <span class="txt"><b>${esc(x.title)}</b>${esc(x.text)}</span>
-            ${x.flag ? `<button data-flag="${x.flag}">Flag</button>` : x.done ? `<button disabled>Flagged</button>` : ""}
+            <span class="txt"><b>${x.title}</b>${esc(x.text)}</span>
+            ${x.flag ? `<button data-flag="${x.flag}">Flag</button>` : x.done ? `<button disabled>Flagged</button>` : x.replenish ? `<button data-replenish="1">Replenish</button>` : ""}
           </div>`).join("")}
       </div>
     `, { foot: `<div class="sah-foot"><div class="inner">
         <button class="btn-wide ghost" id="doneList">Customer List</button>
-        <button class="btn-wide primary" id="doneCust">Done → View Customer</button>
+        <button class="btn-wide primary" id="doneCust">Customer Health</button>
       </div></div>` });
 
     $("#doneList", PAGE).onclick = () => go("customers", {}, true);
@@ -2524,6 +2573,9 @@
       toast("Follow-up flagged.");
       renderComplete();
     }));
+    // Replenishment lives in Sales Orders, which is a different module and a
+    // different repo — this hands off rather than pretending to place an order.
+    PAGE.querySelectorAll("[data-replenish]").forEach((b) => (b.onclick = () => toast("Replenishment request drafted — continue in Sales Orders.", "info")));
   }
 
   /* ------------------------------------------------------------------ mount */
