@@ -815,14 +815,20 @@
   let DRAFT = null; // in-progress audit while the wizard/workspace is open
 
   function go(view, params, replace) {
+    const changed = view !== CURRENT.view;
     if (!replace) STACK.push(CURRENT);
     CURRENT = { view, params: params || {} };
     renderCurrent();
+    if (changed) scrollTop();
   }
   function back() {
     const prev = STACK.pop();
-    if (prev) { CURRENT = prev; renderCurrent(); }
+    if (prev) { CURRENT = prev; renderCurrent(); scrollTop(); }
     else go("customers", {}, true);
+  }
+  function scrollTop() {
+    const el = document.scrollingElement || document.documentElement;
+    if (el) el.scrollTop = 0;
   }
 
   function renderCurrent() {
@@ -1197,51 +1203,227 @@
 
   /* ================================================================= VIEW: audits (secondary) */
 
-  let AUD_STATE = { q: "" };
+  // A field-visit history, not an activity log. Each row answers who was
+  // visited, when, what kind of visit, whether anything was wrong, and how
+  // healthy they were left — in that order, because that's the order a rep
+  // asks the questions in.
+
+  // The eight visit purposes collapse into the four groups anyone actually
+  // sorts by. Four tabs a thumb can hit beat eight chips it has to read.
+  const AUDIT_TABS = [
+    { k: "all", label: "All", purposes: null },
+    { k: "routine", label: "Routine", purposes: ["routine"] },
+    { k: "followup", label: "Follow-up", purposes: ["followup"] },
+    { k: "stock", label: "Stock Check", purposes: ["stockout", "replenishment"] },
+    { k: "other", label: "Other", purposes: ["shelf", "expiry", "request", "other"] },
+  ];
+  const AUD_SORTS = [
+    { k: "newest", label: "Newest" },
+    { k: "oldest", label: "Oldest" },
+    { k: "health", label: "Lowest health" },
+  ];
+  const DATE_RANGES = [
+    { k: "all", label: "Any time", days: null },
+    { k: "7", label: "Last 7 days", days: 7 },
+    { k: "30", label: "Last 30 days", days: 30 },
+    { k: "90", label: "Last 90 days", days: 90 },
+  ];
+  const AUD_STATUSES = [
+    { k: "all", label: "Any status" },
+    { k: "completed", label: "Completed" },
+    { k: "abandoned", label: "Incomplete" },
+  ];
+
+  const AUD_PAGE = 8;
+  const AUD_DEFAULTS = { customer: "all", range: "all", purpose: "all", auditor: "all", status: "all", followUpOnly: false };
+  let AUD_STATE = Object.assign({ q: "", tab: "all", sort: "newest", shown: AUD_PAGE }, AUD_DEFAULTS);
+
+  function allAuditRows() {
+    const custMap = {};
+    loadCustomers().forEach((c) => (custMap[c._id] = c));
+    const rows = [];
+    AuditStore.allCustomerIds().forEach((cid) => {
+      AuditStore.list(cid).forEach((a) => rows.push({ audit: a, customerId: cid, customer: custMap[cid] || {} }));
+    });
+    return rows;
+  }
+
+  const activeFilterCount = () =>
+    Object.keys(AUD_DEFAULTS).filter((k) => AUD_STATE[k] !== AUD_DEFAULTS[k]).length;
+
+  function auditMatchesFilters(r) {
+    const a = r.audit;
+    if (AUD_STATE.customer !== "all" && r.customerId !== AUD_STATE.customer) return false;
+    if (AUD_STATE.purpose !== "all" && a.purpose !== AUD_STATE.purpose) return false;
+    if (AUD_STATE.auditor !== "all" && (a.auditor || AUDITOR.name) !== AUD_STATE.auditor) return false;
+    if (AUD_STATE.status !== "all" && a.status !== AUD_STATE.status) return false;
+    if (AUD_STATE.followUpOnly && !(a.followUp && a.followUp.required)) return false;
+    const range = DATE_RANGES.find((d) => d.k === AUD_STATE.range);
+    if (range && range.days && daysBetween(a.at) > range.days) return false;
+    return true;
+  }
 
   function renderAudits() {
-    const all = loadCustomers();
-    const custMap = {};
-    all.forEach((c) => (custMap[c._id] = c));
-    let rows = [];
-    AuditStore.allCustomerIds().forEach((cid) => {
-      AuditStore.list(cid).forEach((a) => rows.push({ audit: a, customerId: cid, customer: custMap[cid] }));
-    });
-    rows.sort((a, b) => new Date(b.audit.at) - new Date(a.audit.at));
+    const all = allAuditRows();
+    const tab = AUDIT_TABS.find((t) => t.k === AUD_STATE.tab) || AUDIT_TABS[0];
 
+    let rows = all.filter(auditMatchesFilters);
+    if (tab.purposes) rows = rows.filter((r) => tab.purposes.indexOf(r.audit.purpose) !== -1);
     const q = AUD_STATE.q.trim().toLowerCase();
-    if (q) rows = rows.filter((r) => nameOf(r.customer).toLowerCase().includes(q) || (r.audit.notes || "").toLowerCase().includes(q));
+    if (q) rows = rows.filter((r) =>
+      nameOf(r.customer).toLowerCase().includes(q) ||
+      (r.audit.notes || "").toLowerCase().includes(q) ||
+      (r.audit.finalNote || "").toLowerCase().includes(q));
+
+    rows.sort((x, y) => {
+      if (AUD_STATE.sort === "oldest") return new Date(x.audit.at) - new Date(y.audit.at);
+      if (AUD_STATE.sort === "health") return auditScoreOf(x.audit) - auditScoreOf(y.audit);
+      return new Date(y.audit.at) - new Date(x.audit.at);
+    });
+
+    const shown = rows.slice(0, AUD_STATE.shown);
+    const filters = activeFilterCount();
 
     frame(`
       <div class="sah-page-head">
-        <div class="row"><div><h1>Audit History</h1><p>Every visit across every customer, newest first.</p></div></div>
+        <div class="row"><div><h1>Audit History</h1><p>Every customer visit, newest first.</p></div></div>
       </div>
-      <div class="sah-search-row"><div class="sah-search"><input type="search" id="audQ" value="${esc(AUD_STATE.q)}" placeholder="Search by customer or note…"></div></div>
-      ${rows.length ? rows.map(auditRowCardHTML).join("") : `<div class="sah-empty"><div class="big">🗂️</div><p>No audits recorded yet.</p></div>`}
+
+      <div class="sah-search-row">
+        <div class="sah-search"><input type="search" id="audQ" value="${esc(AUD_STATE.q)}" placeholder="Search customer or note…"></div>
+        <button type="button" class="filter-btn ${filters ? "on" : ""}" id="audFilter" aria-label="Filter visits">
+          <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true"><path d="M2.5 4.5h15L12 11v5.5l-4 2V11L2.5 4.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          ${filters ? `<span class="n">${filters}</span>` : ""}
+        </button>
+      </div>
+
+      <div class="chips">
+        ${AUDIT_TABS.map((t) => {
+          const n = t.purposes ? all.filter((r) => t.purposes.indexOf(r.audit.purpose) !== -1).length : all.length;
+          return `<button class="chip ${AUD_STATE.tab === t.k ? "on" : ""}" data-at="${t.k}">${esc(t.label)} (${n})</button>`;
+        }).join("")}
+      </div>
+
+      ${filters ? `<div class="filter-summary"><span>${esc(filterSummaryText())}</span><button type="button" id="audClear">Clear</button></div>` : ""}
+
+      <div class="section-head-row">
+        <h2>Recent Audits</h2>
+        <label class="sort-field">Sort:
+          <select id="audSort">${AUD_SORTS.map((s) => `<option value="${s.k}" ${AUD_STATE.sort === s.k ? "selected" : ""}>${esc(s.label)}</option>`).join("")}</select>
+        </label>
+      </div>
+
+      ${shown.length
+        ? `<div class="aud-list">${shown.map(auditRowCardHTML).join("")}</div>`
+        : `<div class="sah-empty"><div class="big">🗂️</div><p>${all.length ? "No visits match this view." : "No audits recorded yet."}</p></div>`}
+
+      ${rows.length
+        ? `<div class="aud-more">
+            <span>Showing ${shown.length} of ${plural(rows.length, "audit")}</span>
+            ${rows.length > shown.length ? `<button type="button" id="audMore">Load more ⌄</button>` : ""}
+          </div>`
+        : ""}
     `);
 
-    wireSearchInput("audQ", (v) => { AUD_STATE.q = v; renderAudits(); });
+    wireSearchInput("audQ", (v) => { AUD_STATE.q = v; AUD_STATE.shown = AUD_PAGE; renderAudits(); });
+    PAGE.querySelectorAll("[data-at]").forEach((b) => (b.onclick = () => { AUD_STATE.tab = b.dataset.at; AUD_STATE.shown = AUD_PAGE; renderAudits(); }));
+    $("#audSort", PAGE).onchange = (e) => { AUD_STATE.sort = e.target.value; renderAudits(); };
+    $("#audFilter", PAGE).onclick = () => auditFilterSheet(all);
+    const clear = $("#audClear", PAGE);
+    if (clear) clear.onclick = () => { Object.assign(AUD_STATE, AUD_DEFAULTS); AUD_STATE.shown = AUD_PAGE; renderAudits(); };
+    const more = $("#audMore", PAGE);
+    if (more) more.onclick = () => { AUD_STATE.shown += AUD_PAGE; renderAudits(); };
     PAGE.querySelectorAll("[data-open-audit]").forEach((el) => {
       el.onclick = () => go("audit", { customerId: el.dataset.customer, auditId: el.dataset.openAudit });
     });
   }
 
+  // A visit that never completed has no score to sort by. Park it at the
+  // bottom of a lowest-health sort rather than letting a missing number read
+  // as a perfect one — or as a zero.
+  const auditScoreOf = (a) => (a.status === "completed" ? scoreFromAudit(a) : 101);
+
+  function filterSummaryText() {
+    const bits = [];
+    if (AUD_STATE.customer !== "all") bits.push(titleCase(nameOf(loadCustomer(AUD_STATE.customer) || {})));
+    if (AUD_STATE.range !== "all") bits.push((DATE_RANGES.find((d) => d.k === AUD_STATE.range) || {}).label);
+    if (AUD_STATE.purpose !== "all") bits.push(purposeMeta(AUD_STATE.purpose).label);
+    if (AUD_STATE.auditor !== "all") bits.push(AUD_STATE.auditor);
+    if (AUD_STATE.status !== "all") bits.push((AUD_STATUSES.find((s) => s.k === AUD_STATE.status) || {}).label);
+    if (AUD_STATE.followUpOnly) bits.push("Follow-up required");
+    return bits.join(" · ");
+  }
+
+  function auditFilterSheet(all) {
+    const customers = [];
+    const seenC = {};
+    all.forEach((r) => { if (!seenC[r.customerId]) { seenC[r.customerId] = 1; customers.push(r); } });
+    customers.sort((x, y) => nameOf(x.customer).localeCompare(nameOf(y.customer)));
+    const auditors = [];
+    all.forEach((r) => { const n = r.audit.auditor || AUDITOR.name; if (auditors.indexOf(n) === -1) auditors.push(n); });
+
+    const s = sheet({
+      eyebrow: "Audit History",
+      title: "Filter visits",
+      body: `<div class="sheet-form">
+        <label>Customer<select id="fCustomer"><option value="all">All customers</option>${customers.map((r) => `<option value="${esc(r.customerId)}" ${AUD_STATE.customer === r.customerId ? "selected" : ""}>${esc(titleCase(nameOf(r.customer)))}</option>`).join("")}</select></label>
+        <label>Date range<select id="fRange">${DATE_RANGES.map((d) => `<option value="${d.k}" ${AUD_STATE.range === d.k ? "selected" : ""}>${esc(d.label)}</option>`).join("")}</select></label>
+        <label>Audit type<select id="fPurpose"><option value="all">All types</option>${PURPOSES.map((p) => `<option value="${p.k}" ${AUD_STATE.purpose === p.k ? "selected" : ""}>${esc(p.label)}</option>`).join("")}</select></label>
+        <label>Auditor<select id="fAuditor"><option value="all">All auditors</option>${auditors.map((n) => `<option value="${esc(n)}" ${AUD_STATE.auditor === n ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></label>
+        <label>Status<select id="fStatus">${AUD_STATUSES.map((x) => `<option value="${x.k}" ${AUD_STATE.status === x.k ? "selected" : ""}>${esc(x.label)}</option>`).join("")}</select></label>
+        <div class="sheet-toggle"><span>Follow-up required only</span><button type="button" class="switch ${AUD_STATE.followUpOnly ? "on" : ""}" id="fFollow"></button></div>
+      </div>`,
+      actions: [
+        { label: "Apply", cls: "primary", onClick: () => {
+          AUD_STATE.customer = s.el.querySelector("#fCustomer").value;
+          AUD_STATE.range = s.el.querySelector("#fRange").value;
+          AUD_STATE.purpose = s.el.querySelector("#fPurpose").value;
+          AUD_STATE.auditor = s.el.querySelector("#fAuditor").value;
+          AUD_STATE.status = s.el.querySelector("#fStatus").value;
+          AUD_STATE.followUpOnly = s.el.querySelector("#fFollow").classList.contains("on");
+          AUD_STATE.shown = AUD_PAGE;
+          renderAudits();
+        } },
+        { label: "Reset", cls: "ghost", onClick: () => { Object.assign(AUD_STATE, AUD_DEFAULTS); AUD_STATE.shown = AUD_PAGE; renderAudits(); } },
+      ],
+    });
+    s.el.querySelector("#fFollow").onclick = (e) => e.currentTarget.classList.toggle("on");
+  }
+
   function auditRowCardHTML({ audit: a, customerId, customer }) {
     const variance = varianceLines(a).length;
     const flagged = flaggedLines(a).length;
+    const followUp = !!(a.followUp && a.followUp.required);
+    const done = a.status === "completed";
+    const score = done ? scoreFromAudit(a) : null;
+    const sl = scoreLabel(score);
+    // Colour carries status and nothing else: green clean, amber variances,
+    // red flagged, blue awaiting a return visit, grey never finished.
+    const rail = !done ? "muted" : flagged ? "danger" : variance ? "warn" : followUp ? "info" : "ok";
+
     return `
-      <div class="audit-row-card" data-open-audit="${a.id}" data-customer="${customerId}">
-        <div class="top">
-          <div><div class="nm">${esc(titleCase(nameOf(customer || {})))}</div><div class="when">${esc(fmtDate(a.at))} · ${esc(a.auditor || "—")}</div></div>
-        </div>
-        <span class="purpose">${esc(purposeMeta(a.purpose).icon)} ${esc(purposeMeta(a.purpose).label)}</span>
-        <div class="stats">
-          ${auditStatusHTML(a)}
-          ${a.status !== "completed" ? "" : variance ? `<span class="status-tag warn">${variance} variance${variance === 1 ? "" : "s"}</span>` : `<span class="status-tag neutral">All matched</span>`}
-          ${flagged ? `<span class="status-tag danger">${flagged} flagged</span>` : ""}
-          ${a.followUp && a.followUp.required ? `<span class="status-tag followup">Follow-up needed</span>` : ""}
-        </div>
-      </div>`;
+      <button type="button" class="aud-card" data-open-audit="${esc(a.id)}" data-customer="${esc(customerId)}">
+        <span class="rail"><span class="ic ${rail}">${purposeMeta(a.purpose).icon}</span></span>
+        <span class="body">
+          <span class="nm">${esc(titleCase(nameOf(customer)))}</span>
+          <span class="when">${esc(fmtDate(a.at))} · ${esc(a.auditor || AUDITOR.name)}</span>
+          <span class="type">${esc(purposeMeta(a.purpose).label)}</span>
+          <span class="signals">
+            ${done
+              ? variance || flagged
+                ? `${variance ? `<span class="status-tag warn">${plural(variance, "variance")}</span>` : ""}
+                   ${flagged ? `<span class="status-tag danger">${flagged} flagged</span>` : ""}`
+                : `<span class="calm">✓ No issues found — everything matched expected stock.</span>`
+              : auditStatusHTML(a)}
+            ${followUp ? `<span class="status-tag followup">Follow-up needed</span>` : ""}
+          </span>
+        </span>
+        <span class="right">
+          <span class="score ${sl.cls}">${score == null ? "—" : score}</span>
+          <span class="lbl">${score == null ? "No score" : "Health"}</span>
+        </span>
+        <span class="chev">›</span>
+      </button>`;
   }
 
   /* ================================================================= VIEW: customer-detail */
@@ -1756,7 +1938,7 @@
     { k: "damaged", label: "Damaged" },
     { k: "notfound", label: "Not found" },
   ];
-  let INV_STATE = { q: "", filter: "all" };
+  let INV_STATE = { q: "", filter: "all", auditId: null };
 
   function invMatches(l, filter) {
     const cb = l.conditionBreakdown;
@@ -1773,9 +1955,17 @@
   function renderInventory() {
     const customer = loadCustomer(CURRENT.params.customerId);
     if (!customer) { go("customers", {}, true); return; }
-    if (CURRENT.params.filter) { INV_STATE = { q: "", filter: CURRENT.params.filter }; CURRENT.params = { customerId: customer._id }; }
+    if (CURRENT.params.filter) {
+      INV_STATE = { q: "", filter: CURRENT.params.filter, auditId: CURRENT.params.auditId || null };
+      CURRENT.params = { customerId: customer._id };
+    }
 
-    const a = completedIn(customer._id, DETAIL.locationId)[0];
+    // Pinned to one visit when we arrived from it, otherwise the latest —
+    // "Review Issues" on a three-week-old audit has to show what THAT visit
+    // found, not what the most recent one did.
+    const a = INV_STATE.auditId
+      ? auditsFor(customer._id).find((x) => x.id === INV_STATE.auditId)
+      : completedIn(customer._id, DETAIL.locationId)[0];
     if (!a) {
       frame(`<div class="sah-page-head"><h1>Inventory</h1><p>${esc(titleCase(nameOf(customer)))}</p></div>
         ${notAuditedHTML()}`);
@@ -1794,7 +1984,7 @@
     frame(`
       <div class="sah-page-head">
         <button type="button" class="back" id="invBack">← ${esc(titleCase(nameOf(customer)))}</button>
-        <h1>Inventory</h1>
+        <h1>${INV_STATE.filter === "issues" ? "Issues" : "Inventory"}</h1>
         <p>As counted on ${esc(fmtDate(a.at))} · ${esc(a.auditor || AUDITOR.name)}</p>
       </div>
       <div class="sah-search-row"><div class="sah-search"><input type="search" id="invQ" value="${esc(INV_STATE.q)}" placeholder="Search product or SKU…"></div></div>
@@ -1840,6 +2030,7 @@
     const cov = auditCoverage(a);
     const score = a.status === "completed" ? scoreFromAudit(a) : null;
     const sl = scoreLabel(score);
+    const hasIssues = auditLines(a).some((l) => !!issueFor(l));
 
     frame(`
       <div class="sah-page-head">
@@ -1870,9 +2061,33 @@
         ${a.finalNote ? `<p class="notes">"${esc(a.finalNote)}"</p>` : ""}
         ${followUpHTML(a)}
       </div>
-    `);
+
+      ${a.lines.length ? `<div class="sec-label">Recommended Actions</div>
+      <div class="action-list">
+        ${recommendedActions(a).map((x) => `
+          <div class="action-item sev-${x.sev}">
+            <span class="ic">${x.ic}</span>
+            <span class="txt"><b>${x.title}</b>${esc(x.text)}</span>
+            ${x.replenish ? `<button data-replenish="1">Replenish</button>` : ""}
+          </div>`).join("")}
+      </div>` : ""}
+    `, { foot: `<div class="sah-foot"><div class="inner">
+        <button class="btn-wide ghost" id="auIssues" ${hasIssues ? "" : "disabled"}>Review Issues</button>
+        <button class="btn-wide primary" id="auFollow">${a.followUp && a.followUp.required ? "Clear Follow-up" : "Create Follow-up"}</button>
+      </div></div>` });
 
     $("#auBack", PAGE).onclick = back;
+    $("#auIssues", PAGE).onclick = () => go("inventory", { customerId: customer._id, filter: "issues", auditId: a.id });
+    $("#auFollow", PAGE).onclick = () => {
+      if (a.followUp && a.followUp.required) a.followUp = { required: false, note: "", at: "" };
+      else a.followUp = { required: true, note: a.finalNote || "Flagged from the audit summary.", at: new Date().toISOString() };
+      AuditStore.save();
+      toast(a.followUp.required ? "Follow-up flagged." : "Follow-up cleared.");
+      renderAudit();
+    };
+    // Replenishment lives in Sales Orders — a different module and a
+    // different repo — so this hands off rather than faking an order.
+    PAGE.querySelectorAll("[data-replenish]").forEach((b) => (b.onclick = () => toast("Replenishment request drafted — continue in Sales Orders.", "info")));
     wireFollowUp(a, () => renderAudit());
   }
 

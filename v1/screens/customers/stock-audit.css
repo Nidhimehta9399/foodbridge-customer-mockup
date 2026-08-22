@@ -468,6 +468,57 @@
 .pd-blockers div { padding: 2px 0; }
 .pd-blockers div::before { content: "• "; }
 
+/* ── Audit history: a field-visit log ────────────────────────────────────── */
+/* A funnel, not a gear — a gear reads as settings, and this filters. */
+.filter-btn { position: relative; flex-shrink: 0; width: 46px; height: 46px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--muted); display: grid; place-items: center; }
+.filter-btn.on { border-color: var(--teal); background: var(--teal-l); color: var(--teal); }
+.filter-btn .n { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; border-radius: 999px; background: var(--teal); color: #fff; font-size: 10px; font-weight: 800; display: grid; place-items: center; padding: 0 4px; }
+.filter-summary { display: flex; align-items: center; gap: 10px; background: var(--teal-l); border-radius: 10px; padding: 8px 12px; margin-bottom: 14px; }
+.filter-summary span { flex: 1; min-width: 0; font-size: 11.5px; font-weight: 700; color: var(--teal); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.filter-summary button { border: none; background: none; color: var(--teal); font-size: 11.5px; font-weight: 800; flex-shrink: 0; }
+.sheet-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 4px; }
+.sheet-toggle span { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+/* Reinstated for the filter sheet only — the capture screens that used to
+   own this switch were replaced by the product screen's own controls. */
+.switch { position: relative; width: 40px; height: 23px; border-radius: 999px; background: #cbd5e1; border: none; flex-shrink: 0; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 19px; height: 19px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.switch.on { background: var(--teal); }
+.switch.on::after { transform: translateX(17px); }
+
+.aud-list { display: flex; flex-direction: column; gap: 10px; }
+.aud-card { display: flex; align-items: flex-start; gap: 11px; width: 100%; text-align: left; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 13px 13px 13px 11px; position: relative; }
+/* The thread runs through the gap between cards, so a run of visits reads as
+   one history rather than as unrelated rows. */
+.aud-card .rail { position: relative; flex-shrink: 0; align-self: stretch; width: 34px; display: flex; justify-content: flex-start; }
+/* Reaches exactly into the 10px gap to meet the next card. A fixed long
+   height would run past the end of the list and down the empty page. */
+.aud-card .rail::after { content: ""; position: absolute; top: 38px; bottom: -11px; left: 50%; width: 2px; background: var(--line-soft); transform: translateX(-50%); }
+.aud-card:last-child .rail::after { display: none; }
+.aud-card .rail .ic { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; background: var(--slate-100); position: relative; z-index: 1; }
+.aud-card .rail .ic.ok { background: #dcfce7; }
+.aud-card .rail .ic.warn { background: var(--amber-bg); }
+.aud-card .rail .ic.danger { background: #fee2e2; }
+.aud-card .rail .ic.info { background: #dbeafe; }
+.aud-card .rail .ic.muted { background: var(--slate-100); filter: grayscale(1); }
+.aud-card .body { flex: 1; min-width: 0; }
+.aud-card .nm { display: block; font-size: 14px; font-weight: 800; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aud-card .when { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.aud-card .type { display: inline-block; font-size: 11px; font-weight: 700; color: var(--muted); background: var(--slate-100); border-radius: 999px; padding: 3px 9px; margin-top: 7px; }
+.aud-card .signals { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.aud-card .signals:empty { display: none; }
+.aud-card .calm { font-size: 11.5px; color: var(--green-d); font-weight: 600; line-height: 1.35; }
+.aud-card .right { flex-shrink: 0; text-align: center; width: 46px; }
+.aud-card .right .score { display: block; font-size: 18px; font-weight: 800; color: var(--muted-2); font-variant-numeric: tabular-nums; }
+.aud-card .right .score.excellent, .aud-card .right .score.good { color: var(--green-d); }
+.aud-card .right .score.fair { color: var(--orange); }
+.aud-card .right .score.poor { color: var(--red); }
+.aud-card .right .lbl { display: block; font-size: 9.5px; font-weight: 700; color: var(--muted-2); text-transform: uppercase; letter-spacing: .03em; margin-top: 1px; }
+.aud-card .chev { flex-shrink: 0; align-self: center; color: var(--muted-2); font-weight: 800; }
+
+.aud-more { display: flex; align-items: center; gap: 12px; background: var(--slate-50); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-top: 14px; }
+.aud-more span { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); }
+.aud-more button { border: none; background: none; color: var(--teal); font-size: 12.5px; font-weight: 800; flex-shrink: 0; }
+
 /* ── Customer page: a health & visit hub ─────────────────────────────────── */
 .cd-hero { background: var(--teal); color: #fff; border-radius: 16px; margin: 0 0 14px; padding: 15px 16px 17px; }
 .cd-hero .back { background: none; border: none; padding: 0; color: rgba(255,255,255,.85); font-size: 12.5px; font-weight: 700; }
