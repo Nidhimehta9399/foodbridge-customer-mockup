@@ -423,19 +423,24 @@
      so the admin can enter a physical count and see the difference. Shapes
      follow the product list the live view consumes (name, article number,
      category, per-unit system stock). */
+  // `image` is a real (freely-licensed, Wikimedia Commons) photo standing in
+  // for the product's category — not the actual branded pack art, which this
+  // discovery has no rights to. `emoji` stays as the fallback glyph for the
+  // rare render path that has no room for a photo.
+  const IMG = (name) => "https://commons.wikimedia.org/wiki/Special:FilePath/" + encodeURIComponent(name) + "?width=200";
   const products = [
-    { id: "p01", name: "250ML PET", artNo: "34567", category: "SQUARE BOTTLE", unit: "Bottle", systemStock: 2, emoji: "🧴" },
-    { id: "p02", name: "500ML PET", artNo: "89744", category: "SQUARE BOTTLE", unit: "Bottle", systemStock: 1, emoji: "🧴" },
-    { id: "p03", name: "1LTR BOTTLE", artNo: "42534", category: "SQUARE BOTTLE", unit: "Bottle", systemStock: 1, emoji: "🍶" },
-    { id: "p04", name: "NATURAL WATER", artNo: "4534", category: "ROUND BOTTLE", unit: "Bottle", systemStock: 0, emoji: "💧" },
-    { id: "p05", name: "SODA 650ML", artNo: "435345", category: "ROUND BOTTLE", unit: "Bottle", systemStock: 0, emoji: "🥤" },
-    { id: "p06", name: "Mini Bread 100gm", artNo: "a102", category: "BREAD", unit: "Pc", systemStock: 2, emoji: "🥖" },
-    { id: "p07", name: "Milk Bread 200gm", artNo: "a103", category: "BREAD", unit: "Pc", systemStock: 1, emoji: "🍞" },
-    { id: "p08", name: "Milk Bread 350gm", artNo: "a104", category: "BREAD", unit: "Pc", systemStock: 3, emoji: "🍞" },
-    { id: "p09", name: "Amul Taaza 500ml", artNo: "d201", category: "DAIRY", unit: "Crate", systemStock: 12, emoji: "🥛" },
-    { id: "p10", name: "Britannia Bread 400g", artNo: "a105", category: "BREAD", unit: "Packet", systemStock: 30, emoji: "🍞" },
-    { id: "p11", name: "Tata Salt 1kg", artNo: "g301", category: "GROCERY", unit: "Box", systemStock: 8, emoji: "🧂" },
-    { id: "p12", name: "Parle-G 800g", artNo: "b401", category: "BISCUITS", unit: "Box", systemStock: 15, emoji: "🍪" },
+    { id: "p01", name: "250ML PET", artNo: "34567", category: "SQUARE BOTTLE", unit: "Bottle", systemStock: 2, emoji: "🧴", image: IMG("Plastic bottle.jpg") },
+    { id: "p02", name: "500ML PET", artNo: "89744", category: "SQUARE BOTTLE", unit: "Bottle", systemStock: 1, emoji: "🧴", image: IMG("Plastic bottle.jpg") },
+    { id: "p03", name: "1LTR BOTTLE", artNo: "42534", category: "SQUARE BOTTLE", unit: "Bottle", systemStock: 1, emoji: "🍶", image: IMG("Plastic bottle.jpg") },
+    { id: "p04", name: "NATURAL WATER", artNo: "4534", category: "ROUND BOTTLE", unit: "Bottle", systemStock: 0, emoji: "💧", image: IMG("Plastic Water Bottle.jpg") },
+    { id: "p05", name: "SODA 650ML", artNo: "435345", category: "ROUND BOTTLE", unit: "Bottle", systemStock: 0, emoji: "🥤", image: IMG("Coca-cola bottle.jpg") },
+    { id: "p06", name: "Mini Bread 100gm", artNo: "a102", category: "BREAD", unit: "Pc", systemStock: 2, emoji: "🥖", image: IMG("Fresh made bread 06.jpg") },
+    { id: "p07", name: "Milk Bread 200gm", artNo: "a103", category: "BREAD", unit: "Pc", systemStock: 1, emoji: "🍞", image: IMG("Fresh made bread 06.jpg") },
+    { id: "p08", name: "Milk Bread 350gm", artNo: "a104", category: "BREAD", unit: "Pc", systemStock: 3, emoji: "🍞", image: IMG("Fresh made bread 06.jpg") },
+    { id: "p09", name: "Amul Taaza 500ml", artNo: "d201", category: "DAIRY", unit: "Crate", systemStock: 12, emoji: "🥛", image: IMG("Dairy Crest Semi Skimmed Milk Bottle.jpg") },
+    { id: "p10", name: "Britannia Bread 400g", artNo: "a105", category: "BREAD", unit: "Packet", systemStock: 30, emoji: "🍞", image: IMG("Fresh made bread 06.jpg") },
+    { id: "p11", name: "Tata Salt 1kg", artNo: "g301", category: "GROCERY", unit: "Box", systemStock: 8, emoji: "🧂", image: IMG("Coles Smartbuy Salt.jpg") },
+    { id: "p12", name: "Parle-G 800g", artNo: "b401", category: "BISCUITS", unit: "Box", systemStock: 15, emoji: "🍪", image: IMG("Biscuit white background.jpg") },
   ];
 
   /* ---- Tenant feature flags (localStorage `appProp` in the live app) ----
