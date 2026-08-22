@@ -509,7 +509,6 @@
 
       <div class="sah-search-row">
         <div class="sah-search"><input type="search" id="custQ" value="${esc(CUST_STATE.q)}" placeholder="Search customers or locations…"></div>
-        <button type="button" class="filter-icon-btn" id="filterBtn" aria-label="More filters">🔽</button>
       </div>
       <div class="chips">
         ${FILTERS.map((f) => `<button class="chip ${CUST_STATE.filter === f.k ? "on" : ""}" data-f="${f.k}">${esc(f.label)} (${filterCount(all, f.k)})</button>`).join("")}
@@ -561,7 +560,6 @@
     `);
 
     $("#headCta", PAGE).onclick = () => { DRAFT = null; go("create-customer", {}); };
-    $("#filterBtn", PAGE).onclick = () => toast("More filters — coming soon.", "info");
     wireSearchInput("custQ", (v) => { CUST_STATE.q = v; CUST_STATE.showAll = false; renderCustomers(); });
     $("#custSort", PAGE).onchange = (e) => { CUST_STATE.sort = e.target.value; renderCustomers(); };
     const viewAll = $("#viewAllCust", PAGE);
