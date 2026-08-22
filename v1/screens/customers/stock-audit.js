@@ -812,6 +812,7 @@
       brief: renderBrief,
       workspace: renderWorkspace,
       product: renderProduct,
+      review: renderReview,
       complete: renderComplete,
     })[CURRENT.view]?.();
   }
@@ -1689,7 +1690,7 @@
     };
 
     $("#wsExit", PAGE).onclick = () => exitAuditSheet(customer);
-    $("#wsReview", PAGE).onclick = () => completeAudit(customer);
+    $("#wsReview", PAGE).onclick = () => go("review", { customerId: customer._id });
   }
 
   function nextUncaptured(lastAudit, afterId) {
@@ -2158,6 +2159,145 @@
     else { toast("That's everything — ready to review."); go("workspace", { customerId: customer._id }, true); }
   }
 
+  /* ================================================================= VIEW: review */
+
+  // A snapshot of the draft in the shape everything else already reads, so
+  // the review screen and the completed record can't compute the same numbers
+  // two different ways. Lines are copied, not aliased — reviewing must not
+  // edit what the rep captured.
+  function draftAsAudit(customer) {
+    return normalizeAudit({
+      id: "draft-" + customer._id,
+      at: DRAFT.at ? new Date(DRAFT.at).toISOString() : new Date().toISOString(),
+      status: "review",
+      auditor: DRAFT.auditor || AUDITOR.name,
+      purpose: DRAFT.purpose,
+      locationId: DRAFT.locationId,
+      expectedProducts: products.length,
+      notes: DRAFT.notes,
+      lines: Object.keys(DRAFT.lines).map((id) => clone(DRAFT.lines[id])).filter(lineIsCaptured),
+    }, customer._id);
+  }
+
+  // Lines the rep still owes someone an action on after they leave.
+  function followUpLines(a) {
+    return auditLines(a).filter((l) =>
+      l.status === "not_found" ||
+      (l.conditionBreakdown.expired || 0) > 0 ||
+      (l.conditionBreakdown.damaged || 0) > 0 ||
+      isStockOutRisk(l));
+  }
+
+  // Why this line needs someone to do something — which is not always its
+  // condition. A product in perfect condition with two units left of an
+  // expected thirty needs a delivery, and labelling that row "OK" tells the
+  // rep nothing about why it's on the list.
+  function followUpReason(l) {
+    if (l.status === "not_found") return { cls: "warn", label: "Couldn't verify" };
+    if ((l.conditionBreakdown.expired || 0) > 0) return { cls: "danger", label: "Pull expired stock" };
+    if ((l.conditionBreakdown.damaged || 0) > 0) return { cls: "danger", label: "Damaged stock" };
+    if (isStockOutRisk(l)) return { cls: "danger", label: "Replenish" };
+    return { cls: "neutral", label: "Check" };
+  }
+
+  function renderReview() {
+    const customer = loadCustomer(CURRENT.params.customerId);
+    if (!customer || !DRAFT) { go("customers", {}, true); return; }
+
+    const a = draftAsAudit(customer);
+    const cov = auditCoverage(a);
+    const audited = auditLines(a).filter((l) => l.status === "audited");
+    const matched = audited.filter((l) => lineVariance(l) === 0 && !isStockOutRisk(l) && dominantCondition(l) === "ok").length;
+    const variances = varianceLines(a).length;
+    const stockouts = stockOutLines(a).length;
+    const totals = conditionTotals(a);
+    const shelfPct = shelfHealthPct(a);
+    const followUps = followUpLines(a);
+    const notFound = auditLines(a).filter((l) => l.status === "not_found").length;
+
+    frame(`
+      <div class="sah-page-head">
+        <h1>Review Audit</h1><p>${esc(placeLine(customer, DRAFT.locationId))} · ${esc(purposeMeta(DRAFT.purpose).label)}</p>
+      </div>
+
+      <div class="rv-coverage">
+        <div class="row"><b>${cov.audited}</b><span>products audited</span></div>
+        ${notFound ? `<div class="row"><b>${notFound}</b><span>marked not found</span></div>` : ""}
+        <div class="row ${cov.skipped ? "warn" : ""}"><b>${cov.skipped}</b><span>not reached</span></div>
+        <div class="ws-bar"><span style="width:${cov.pct}%"></span></div>
+      </div>
+
+      <div class="sec-label">Stock</div>
+      <div class="rv-card">
+        <div class="rv-line ok"><span class="ic">✓</span><span class="txt">${matched} product${matched === 1 ? "" : "s"} matched</span></div>
+        <div class="rv-line ${variances ? "warn" : "muted"}"><span class="ic">⚠</span><span class="txt">${variances} stock variance${variances === 1 ? "" : "s"}</span></div>
+        <div class="rv-line ${stockouts ? "danger" : "muted"}"><span class="ic">●</span><span class="txt">${stockouts} stock-out risk${stockouts === 1 ? "" : "s"}</span></div>
+      </div>
+
+      <div class="sec-label">Condition</div>
+      <div class="rv-card">
+        ${CONDITION_KEYS.map((c) => `
+          <div class="rv-line ${totals[c.k] ? c.k : "muted"}"><span class="ic">${c.icon}</span><span class="txt">${esc(c.label)}</span><b>${totals[c.k]}</b></div>`).join("")}
+      </div>
+
+      ${shelfPct == null ? "" : `<div class="sec-label">Shelf</div>
+      <div class="rv-card"><div class="rv-line ${shelfPct >= 90 ? "ok" : shelfPct >= 70 ? "warn" : "danger"}"><span class="ic">🧺</span><span class="txt">${shelfPct}% available</span></div></div>`}
+
+      <div class="sec-label">Follow-up</div>
+      <div class="rv-card">
+        <div class="rv-line ${followUps.length ? "warn" : "ok"}"><span class="ic">${followUps.length ? "🚩" : "✓"}</span><span class="txt">${followUps.length ? `${followUps.length} product${followUps.length === 1 ? "" : "s"} need action` : "Nothing outstanding"}</span></div>
+        ${followUps.length ? `<div class="rv-issues">${followUps.map((l) => `
+          <div class="rv-issue"><span class="pn">${esc(productName(l.productId))}</span><span class="status-tag ${followUpReason(l).cls}">${esc(followUpReason(l).label)}</span></div>`).join("")}
+          <button type="button" class="rv-link" id="rvIssues">Review these products ›</button>` : ""}
+      </div>
+    `, { foot: `<div class="sah-foot"><div class="inner">
+        <button class="btn-wide ghost" id="rvBack">Keep counting</button>
+        <button class="btn-wide primary" id="rvComplete" ${cov.audited || notFound ? "" : "disabled"}>Complete Audit</button>
+      </div></div>` });
+
+    $("#rvBack", PAGE).onclick = () => go("workspace", { customerId: customer._id }, true);
+    const issues = $("#rvIssues", PAGE);
+    if (issues) issues.onclick = () => { WS_STATE.tab = "attention"; WS_STATE.q = ""; go("workspace", { customerId: customer._id }, true); };
+    $("#rvComplete", PAGE).onclick = () => {
+      if (cov.skipped > 0) coverageSheet(customer, cov);
+      else finishAudit(customer);
+    };
+  }
+
+  // Unfinished work is never silently lost. If products weren't reached, the
+  // rep says so and says why, and that reason becomes part of the record —
+  // "42 of 50, store closing" is a different fact from "42 of 50" and a very
+  // different one from "50 of 50".
+  function coverageSheet(customer, cov) {
+    let picked = null;
+    const s = sheet({
+      eyebrow: placeLine(customer, DRAFT.locationId),
+      title: `${cov.skipped} product${cov.skipped === 1 ? "" : "s"} not audited`,
+      sub: "Go back and finish them, or close this as a partial visit and say what stopped it.",
+      body: `<div class="pd-opts sheet-opts">${PARTIAL_REASONS.map((r) => `<button type="button" class="pd-opt" data-pr="${r.k}">${esc(r.label)}</button>`).join("")}</div>`,
+      actions: [
+        { label: "Complete the remaining products", cls: "ghost", onClick: () => go("workspace", { customerId: customer._id }, true) },
+        {
+          label: "Complete with partial coverage",
+          cls: "primary",
+          onClick: () => {
+            if (!picked) { toast("Pick what stopped the audit.", "info"); return false; }
+            DRAFT.partial = { isPartial: true, reason: picked, note: "" };
+            finishAudit(customer);
+          },
+        },
+      ],
+    });
+    s.el.querySelectorAll("[data-pr]").forEach((b) => (b.onclick = () => {
+      picked = b.dataset.pr;
+      s.el.querySelectorAll("[data-pr]").forEach((x) => x.classList.toggle("on", x === b));
+    }));
+  }
+
+  function finishAudit(customer) {
+    completeAudit(customer);
+  }
+
   /* ------------------------------------------------------- complete audit */
 
   function completeAudit(customer) {
@@ -2185,6 +2325,7 @@
       // coverage of a visit that is already closed.
       expectedProducts: products.length,
       notes: (DRAFT.notes || "").trim(),
+      partial: DRAFT.partial || { isPartial: false, reason: null, note: "" },
       lines,
       followUp: { required: false, note: "", at: "" },
     }, customer._id);
