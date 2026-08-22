@@ -276,6 +276,27 @@
     return reasons;
   }
 
+  // One-line "why", specific to this customer — the detail line under a
+  // reason chip in the Needs Attention drill-down. Generic labels ("Stock-out
+  // risk") tell you the category; this tells you which product or how late.
+  function reasonDetailText(customerId, kind) {
+    const latest = auditsFor(customerId)[0];
+    if (kind === "stockout") {
+      const names = (latest ? latest.lines : []).filter((l) => l.condition === "out_of_stock").map((l) => productName(l.productId));
+      return names.length ? "Out of stock: " + names.join(", ") : "";
+    }
+    if (kind === "expiry") {
+      const names = (latest ? latest.lines : []).filter((l) => l.condition === "expired" || l.condition === "near_expiry").map((l) => productName(l.productId));
+      return names.length ? "Expiring soon: " + names.join(", ") : "";
+    }
+    if (kind === "overdue") return latest ? "Last audited " + fmtRelative(latest.at) : "Never audited";
+    if (kind === "ordering") {
+      const os = orderingStatusFor(customerId);
+      return os.daysOverdue > 0 ? `Order overdue by ${os.daysOverdue} day${os.daysOverdue === 1 ? "" : "s"}` : "Outside its usual ordering cycle";
+    }
+    return "";
+  }
+
   function nextActionFor(customerId) {
     const latest = auditsFor(customerId)[0];
     if (latest && latest.followUp && latest.followUp.required) return "Follow up";
@@ -368,6 +389,7 @@
   function renderCurrent() {
     ({
       customers: renderCustomers,
+      "needs-attention": renderNeedsAttention,
       audits: renderAudits,
       "customer-detail": () => renderCustomerDetail(CURRENT.params.customerId, CURRENT.params.openAuditId),
       "create-customer": renderCreateCustomer,
@@ -389,6 +411,7 @@
   function navActiveKey(view) {
     if (view === "customers" || view === "customer-detail") return "customers";
     if (view === "audits") return "audits";
+    if (view === "needs-attention") return "attention";
     return null;
   }
 
@@ -405,7 +428,7 @@
         <button class="nav-btn ${active === "customers" ? "active" : ""}" data-nav="customers"><span class="ic">🏬</span>Customers</button>
         <button class="nav-btn ${active === "audits" ? "active" : ""}" data-nav="audits"><span class="ic">🗂️</span>Audits</button>
         <button class="nav-btn fab-slot" data-nav="create"><span class="nav-fab">+</span><span class="lbl">New Audit</span></button>
-        <button class="nav-btn" data-nav="attention"><span class="ic-wrap"><span class="ic">🔔</span>${attentionCount ? `<span class="badge">${attentionCount > 99 ? "99+" : attentionCount}</span>` : ""}</span>Attention</button>
+        <button class="nav-btn ${active === "attention" ? "active" : ""}" data-nav="attention"><span class="ic-wrap"><span class="ic">🔔</span>${attentionCount ? `<span class="badge">${attentionCount > 99 ? "99+" : attentionCount}</span>` : ""}</span>Attention</button>
         <button class="nav-btn" data-nav="more"><span class="ic">•••</span>More</button>
       </div>`;
   }
@@ -416,7 +439,7 @@
         if (k === "customers") go("customers", {}, true);
         else if (k === "audits") go("audits", {}, true);
         else if (k === "create") { DRAFT = null; go("create-customer", {}); }
-        else if (k === "attention") go("customers", { filter: "attention" }, true);
+        else if (k === "attention") go("needs-attention", { filter: "all" }, true);
         else if (k === "more") openMoreSheet();
       };
     });
@@ -525,10 +548,10 @@
 
       <div class="section-head-row">
         <h2>Needs Attention</h2>
-        <button type="button" class="link-chev" data-f="attention">View all ›</button>
+        <button type="button" class="link-chev" id="naViewAll">View all ›</button>
       </div>
       <div class="issue-card">
-        <button type="button" class="issue-row" data-issue="stockout">
+        <button type="button" class="issue-row" data-na="stockout">
           <span class="ic-circle danger">⚠️</span>
           <span class="txt">${stockoutCount} customer${stockoutCount === 1 ? "" : "s"} approaching stock-out</span>
           <span class="n">${stockoutCount}</span><span class="chev">›</span>
@@ -538,7 +561,7 @@
           <span class="txt">${needsVisitCount} customer${needsVisitCount === 1 ? "" : "s"} due for audit</span>
           <span class="n">${needsVisitCount}</span><span class="chev">›</span>
         </button>
-        <button type="button" class="issue-row" data-issue="expiry">
+        <button type="button" class="issue-row" data-na="expiry">
           <span class="ic-circle warn">⏰</span>
           <span class="txt">${expiryCount} customer${expiryCount === 1 ? "" : "s"} with expiry risk</span>
           <span class="n">${expiryCount}</span><span class="chev">›</span>
@@ -565,6 +588,9 @@
     if (sortSel) sortSel.onchange = (e) => { CUST_STATE.sort = e.target.value; renderCustomers(); };
     PAGE.querySelectorAll("[data-f]").forEach((b) => (b.onclick = () => { CUST_STATE.filter = b.dataset.f; renderCustomers(); }));
     PAGE.querySelectorAll("[data-issue]").forEach((b) => (b.onclick = () => { CUST_STATE.filter = b.dataset.issue; renderCustomers(); }));
+    const naViewAll = $("#naViewAll", PAGE);
+    if (naViewAll) naViewAll.onclick = () => go("needs-attention", { filter: "all" });
+    PAGE.querySelectorAll("[data-na]").forEach((b) => (b.onclick = () => go("needs-attention", { filter: b.dataset.na })));
     PAGE.querySelectorAll("[data-goto]").forEach((el) => {
       el.onclick = (e) => {
         if (e.target.closest("[data-start]")) return;
@@ -596,6 +622,71 @@
           <button type="button" class="btn-start-sm" data-start="${c._id}">Start Audit</button>
           <span class="chev">›</span>
         </span>
+      </div>`;
+  }
+
+  /* ================================================================= VIEW: needs-attention (drill-down) */
+
+  // The landing page's Needs Attention block is a *summary* — three counts,
+  // no names. This is where a rep actually works the list: every flagged
+  // customer, the specific reason(s) each was flagged for (not just a
+  // category count), and a one-line detail (which product, how many days
+  // overdue) so most of these can be triaged without opening the customer.
+  let NA_STATE = { filter: "all" };
+  const NA_FILTERS = [
+    { k: "all", label: "All" },
+    { k: "stockout", label: "Stock-out Risk" },
+    { k: "expiry", label: "Expiry Risk" },
+    { k: "overdue", label: "Overdue Audit" },
+    { k: "ordering", label: "Outside Ordering Cycle" },
+  ];
+
+  function renderNeedsAttention() {
+    if (CURRENT.params.filter) { NA_STATE.filter = CURRENT.params.filter; CURRENT.params = {}; }
+    const all = loadCustomers();
+    const flagged = all.map((c) => ({ c, reasons: reasonsFor(c._id) })).filter((x) => x.reasons.length);
+    const countFor = (k) => (k === "all" ? flagged.length : flagged.filter((x) => x.reasons.some((r) => r.k === k)).length);
+    const rows = (NA_STATE.filter === "all" ? flagged : flagged.filter((x) => x.reasons.some((r) => r.k === NA_STATE.filter)))
+      .slice()
+      // Worst first: most simultaneous reasons, then lowest health score.
+      .sort((a, b) => b.reasons.length - a.reasons.length || (customerScoreFor(a.c._id) ?? -1) - (customerScoreFor(b.c._id) ?? -1));
+
+    frame(`
+      <div class="sah-page-head">
+        <h1>Needs Attention</h1><p>Every flagged customer, and why — worst first.</p>
+      </div>
+      <div class="chips">
+        ${NA_FILTERS.map((f) => `<button class="chip ${NA_STATE.filter === f.k ? "on" : ""}" data-naf="${f.k}">${esc(f.label)} (${countFor(f.k)})</button>`).join("")}
+      </div>
+      ${rows.length
+        ? `<div class="customer-list">${rows.map(({ c, reasons }) => naCardHTML(c, reasons)).join("")}</div>`
+        : `<div class="sah-empty"><div class="big">✅</div><p>Nothing needs attention right now.</p></div>`}
+    `);
+
+    PAGE.querySelectorAll("[data-naf]").forEach((b) => (b.onclick = () => { NA_STATE.filter = b.dataset.naf; renderNeedsAttention(); }));
+    PAGE.querySelectorAll("[data-goto]").forEach((el) => {
+      el.onclick = (e) => {
+        if (e.target.closest("[data-start]")) return;
+        go("customer-detail", { customerId: el.dataset.goto });
+      };
+    });
+    PAGE.querySelectorAll("[data-start]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); startAuditFor(b.dataset.start); }));
+  }
+
+  function naCardHTML(c, reasons) {
+    const details = reasons.map((r) => reasonDetailText(c._id, r.k)).filter(Boolean);
+    return `
+      <div class="na-card" data-goto="${c._id}">
+        <div class="na-top">
+          <span class="na-info">
+            <span class="nm">${esc(titleCase(nameOf(c)))}</span>
+            <span class="loc">${esc(addressLine(c.adress1, c.state?.name, c.postnr))}</span>
+          </span>
+          <button type="button" class="btn-start-sm" data-start="${c._id}">Start Audit</button>
+          <span class="chev">›</span>
+        </div>
+        <div class="reasons">${reasons.map((r) => `<span class="status-tag ${r.cls}">${esc(r.label)}</span>`).join("")}</div>
+        ${details.length ? `<div class="na-detail">${details.map((d) => esc(d)).join(" · ")}</div>` : ""}
       </div>`;
   }
 
