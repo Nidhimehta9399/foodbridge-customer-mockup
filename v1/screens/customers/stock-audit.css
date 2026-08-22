@@ -351,16 +351,6 @@
 .issue-item { display: flex; align-items: flex-start; gap: 10px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 10px 12px; font-size: 12.5px; color: #7c2d12; }
 .issue-item .ic { flex-shrink: 0; }
 
-/* ── Audit Workspace (capture flow) ───────────────────────────────────────── */
-.cap-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-@media (max-width: 420px) { .cap-meta { grid-template-columns: 1fr; } }
-.cap-meta label { display: block; font-size: 11.5px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
-.cap-meta input {
-  width: 100%; height: 42px; border: 1px solid var(--line); border-radius: 10px;
-  padding: 0 12px; font-size: 13.5px; outline: none; background: #fff;
-}
-.cap-meta input:focus { border-color: var(--teal); }
-
 /* ── Audit workspace: the product list ───────────────────────────────────── */
 /* Persistent context, per the spec: a rep glancing down mid-count should
    always see where they are, how far along they are, and how much is

@@ -371,7 +371,6 @@
   ];
   const condMeta = (k) => CONDITIONS.find((c) => c.k === k) || { label: k, icon: "•" };
   const shelfMeta = (k) => SHELF_AVAILABILITY.find((x) => x.k === k) || { label: "Not rated", cls: "neutral" };
-  const storageMeta = (k) => STORAGE_KEYS.find((x) => x.k === k) || { label: k, icon: "📍" };
   const notFoundMeta = (k) => NOT_FOUND_REASONS.find((x) => x.k === k) || { label: "Not found" };
 
   // Lifecycle. A completed audit is an immutable snapshot of a visit —
@@ -507,7 +506,6 @@
   const linePhysical = (l) => (l.physical == null ? 0 : Number(l.physical) || 0);
   const lineExpected = (l) => Number(l.expected) || 0;
   const lineVariance = (l) => linePhysical(l) - lineExpected(l);
-  const lineAtRisk = (l) => (l.conditionBreakdown.nearExpiry || 0) + (l.conditionBreakdown.expired || 0) + (l.conditionBreakdown.damaged || 0);
   const lineIsCaptured = (l) => l.status === "audited" || l.status === "not_found";
   const auditLines = (a) => (a && a.lines) || [];
 
