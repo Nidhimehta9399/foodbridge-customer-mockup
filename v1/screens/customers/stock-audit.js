@@ -159,7 +159,11 @@
       } catch (e) {
         saved = null;
       }
-      this.state = saved || clone(SEED.stockAudits || {});
+      const raw = saved || clone(SEED.stockAudits || {});
+      // Migrate on read — see normalizeAudit. Covers both the seed and any
+      // records a rep already has in localStorage from an earlier build.
+      Object.keys(raw).forEach((cid) => (raw[cid] = (raw[cid] || []).map((a) => normalizeAudit(a, cid))));
+      this.state = raw;
       return this.state;
     },
     save() {
@@ -181,15 +185,184 @@
   const productById = (id) => products.find((p) => p.id === id);
   const productName = (id) => (productById(id) || {}).name || id;
 
+  /* ---------------------------------------------------- observation model */
+
+  // A line on an audit is an OBSERVATION, not a count — what was expected,
+  // what was physically found, how that physical stock breaks down by
+  // condition and by where it was stored, plus whatever exception detail the
+  // condition made relevant (expiry/batch, disposition, damage type). The
+  // point is that the record still describes the visit six months later:
+  // "20 counted" has already thrown away the fact that 5 of them were expired.
+  //
+  // Everything derivable — variance, condition totals, whether a line is
+  // flagged, audit coverage, the health axes — is computed on read and never
+  // stored, so a hand-edited seed can't end up disagreeing with itself.
+
+  // Physical stock splits four ways, and the four must reconcile to the
+  // total. That rule is enforced where it's entered, not here.
+  const CONDITION_KEYS = [
+    { k: "good", label: "Good", legacy: "ok", icon: "✓" },
+    { k: "nearExpiry", label: "Near Expiry", legacy: "near_expiry", icon: "⏰" },
+    { k: "expired", label: "Expired", legacy: "expired", icon: "⏳" },
+    { k: "damaged", label: "Damaged", legacy: "damaged", icon: "⚠️" },
+  ];
+  // Where the stock physically was. Shelf vs backroom is a real distinction:
+  // an empty-looking shelf with 12 units sitting in the back is a
+  // merchandising problem, not a stock problem.
+  const STORAGE_KEYS = [
+    { k: "shelf", label: "On shelf", icon: "🧺" },
+    { k: "backroom", label: "Backroom", icon: "🚪" },
+    { k: "warehouse", label: "Warehouse", icon: "🏭" },
+    { k: "other", label: "Other", icon: "📍" },
+  ];
+  const SHELF_AVAILABILITY = [
+    { k: "available", label: "Available", cls: "ok" },
+    { k: "partial", label: "Partially available", cls: "warn" },
+    { k: "not_on_shelf", label: "Not on shelf", cls: "danger" },
+  ];
+  // "Couldn't find it" and "confirmed zero on hand" are different business
+  // states and must not collapse into each other — one is an unverified
+  // line, the other is a stock-out. Hence a line status of its own.
+  const NOT_FOUND_REASONS = [
+    { k: "not_on_shelf", label: "Not on shelf" },
+    { k: "not_in_backroom", label: "Not in backroom" },
+    { k: "customer_says_oos", label: "Customer says out of stock" },
+    { k: "no_access", label: "Unable to access" },
+    { k: "other", label: "Other" },
+  ];
+  const DISPOSITIONS = [
+    { k: "pull", label: "Pull from shelf" },
+    { k: "return", label: "Return" },
+    { k: "dispose", label: "Dispose" },
+    { k: "customer", label: "Customer decision" },
+  ];
+  const DAMAGE_TYPES = [
+    { k: "packaging", label: "Packaging" },
+    { k: "product", label: "Product damage" },
+    { k: "leakage", label: "Leakage" },
+    { k: "other", label: "Other" },
+  ];
+
+  // Badge vocabulary — the single worst thing true about a line, for the many
+  // places a list has room for one pill rather than a whole breakdown.
   const CONDITIONS = [
     { k: "ok", label: "OK", icon: "✓" },
     { k: "damaged", label: "Damaged", icon: "⚠️" },
     { k: "expired", label: "Expired", icon: "⏳" },
     { k: "near_expiry", label: "Near Expiry", icon: "⏰" },
     { k: "out_of_stock", label: "Out of Stock", icon: "🚫" },
+    { k: "not_found", label: "Not Found", icon: "❓" },
   ];
   const condMeta = (k) => CONDITIONS.find((c) => c.k === k) || { label: k, icon: "•" };
-  const FLAGGED = new Set(["damaged", "expired", "near_expiry", "out_of_stock"]);
+  const shelfMeta = (k) => SHELF_AVAILABILITY.find((x) => x.k === k) || { label: "Not rated", cls: "neutral" };
+  const storageMeta = (k) => STORAGE_KEYS.find((x) => x.k === k) || { label: k, icon: "📍" };
+  const notFoundMeta = (k) => NOT_FOUND_REASONS.find((x) => x.k === k) || { label: "Not found" };
+
+  // Lifecycle. A completed audit is an immutable snapshot of a visit —
+  // corrections after the fact are meant to become their own record rather
+  // than silently rewriting what the rep saw on the day.
+  const AUDIT_STATUS = {
+    draft: { label: "Draft", cls: "neutral" },
+    in_progress: { label: "In Progress", cls: "info" },
+    paused: { label: "Paused", cls: "warn" },
+    review: { label: "In Review", cls: "info" },
+    completed: { label: "Completed", cls: "ok" },
+    cancelled: { label: "Cancelled", cls: "neutral" },
+    abandoned: { label: "Abandoned", cls: "danger" },
+  };
+  const statusMeta = (k) => AUDIT_STATUS[k] || AUDIT_STATUS.completed;
+  const OPEN_STATUSES = new Set(["draft", "in_progress", "paused", "review"]);
+
+  // The signed-in rep. Auto-populated everywhere the spec says "do not make
+  // the employee type their own name, role, team".
+  const AUDITOR = { id: "u-mahesh", name: "Mahesh", role: "Sales Executive", team: "Pune Team" };
+
+  const emptyCondition = () => ({ good: 0, nearExpiry: 0, expired: 0, damaged: 0 });
+  const emptyStorage = () => ({ shelf: 0, backroom: 0, warehouse: 0, other: 0 });
+  const sumOf = (obj) => Object.keys(obj || {}).reduce((n, k) => n + (Number(obj[k]) || 0), 0);
+
+  function blankLine(productId, expected) {
+    return {
+      productId,
+      expected: Number(expected) || 0,
+      physical: null,
+      conditionBreakdown: emptyCondition(),
+      storageBreakdown: emptyStorage(),
+      shelfAvailability: null,
+      facings: null,
+      expiryDetails: [],
+      disposition: null,
+      damageType: null,
+      notes: "",
+      evidence: [],
+      status: "pending",
+      notFoundReason: null,
+    };
+  }
+
+  // Audits written before the observation model existed — the original seed,
+  // plus whatever is already sitting in a rep's localStorage — carried one
+  // enum per line: {system, counted, condition, shelfAvailable}. Read them
+  // forward instead of dropping them: the history IS the value of this
+  // feature, and migrating on read costs one function and loses nothing.
+  function normalizeLine(raw) {
+    if (!raw) return null;
+    // Discriminate on the LEGACY fields, not on the presence of a
+    // conditionBreakdown: a not-found line legitimately has no condition
+    // buckets at all, and testing for them sent it down the migration path.
+    const legacy = "counted" in raw || "system" in raw;
+    if (!legacy) {
+      // Already the observation shape, but very likely terse — the seed only
+      // spells out the buckets that are non-zero. Fill in the rest so every
+      // reader can assume the whole shape is present.
+      const line = Object.assign(blankLine(raw.productId, raw.expected), raw);
+      line.conditionBreakdown = Object.assign(emptyCondition(), raw.conditionBreakdown);
+      line.storageBreakdown = Object.assign(emptyStorage(), raw.storageBreakdown);
+      line.expiryDetails = raw.expiryDetails || [];
+      line.evidence = raw.evidence || [];
+      // Physical stock IS the sum of its condition buckets — that's the
+      // reconciliation rule, so deriving it here rather than repeating it in
+      // the seed keeps the two from ever disagreeing.
+      if (line.physical == null && line.status === "audited") line.physical = sumOf(line.conditionBreakdown);
+      return line;
+    }
+    const physical = Number(raw.counted) || 0;
+    const line = blankLine(raw.productId, raw.system);
+    line.physical = physical;
+    line.status = "audited";
+    const bucket = { ok: "good", near_expiry: "nearExpiry", expired: "expired", damaged: "damaged" }[raw.condition];
+    // out_of_stock has no bucket to land in — physical is 0, so every bucket
+    // is 0 too, and the stock-out reads off expected-vs-physical instead.
+    if (bucket) line.conditionBreakdown[bucket] = physical;
+    const onShelf = raw.shelfAvailable !== false;
+    line.storageBreakdown[onShelf ? "shelf" : "backroom"] = physical;
+    line.shelfAvailability = onShelf ? "available" : "not_on_shelf";
+    return line;
+  }
+
+  function normalizeAudit(raw, customerId) {
+    const a = raw || {};
+    a.customerId = a.customerId || customerId;
+    a.lines = (a.lines || []).map(normalizeLine).filter(Boolean);
+    // Anything that predates the lifecycle is, by definition, history.
+    if (!a.status) a.status = "completed";
+    if (!a.createdAt) a.createdAt = a.at;
+    if (!a.completedAt && a.status === "completed") a.completedAt = a.at;
+    if (!a.auditor) a.auditor = AUDITOR.name;
+    // Who did what, so a half-finished visit picked up by a second rep still
+    // reads correctly afterwards.
+    if (!a.actors) {
+      const done = a.status === "completed";
+      a.actors = { createdBy: a.auditor, startedBy: a.auditor, lastEditedBy: a.auditor, completedBy: done ? a.auditor : null };
+    }
+    if (!a.evidence) a.evidence = [];
+    if (!a.finalNote) a.finalNote = "";
+    if (!("outcome" in a)) a.outcome = null;
+    if (!a.partial) a.partial = { isPartial: false, reason: null, note: "" };
+    if (!a.followUp) a.followUp = { required: false, note: "", at: "" };
+    return a;
+  }
+
 
   const PURPOSES = [
     { k: "routine", label: "Routine Stock Check", icon: "📋", sub: "Regular scheduled visit" },
@@ -200,23 +373,83 @@
   ];
   const purposeMeta = (k) => PURPOSES.find((p) => p.k === k) || { label: k || "Visit", icon: "📋" };
 
-  function lineVariance(line) {
-    return (line.counted || 0) - (line.system || 0);
+  const linePhysical = (l) => (l.physical == null ? 0 : Number(l.physical) || 0);
+  const lineExpected = (l) => Number(l.expected) || 0;
+  const lineVariance = (l) => linePhysical(l) - lineExpected(l);
+  const lineAtRisk = (l) => (l.conditionBreakdown.nearExpiry || 0) + (l.conditionBreakdown.expired || 0) + (l.conditionBreakdown.damaged || 0);
+  const lineIsCaptured = (l) => l.status === "audited" || l.status === "not_found";
+  const auditLines = (a) => (a && a.lines) || [];
+
+  // The single worst thing true about a line, as a badge key. "Not found"
+  // outranks everything because it means the line was never verified at all.
+  function dominantCondition(l) {
+    if (l.status === "not_found") return "not_found";
+    if (l.conditionBreakdown.expired > 0) return "expired";
+    if (l.conditionBreakdown.damaged > 0) return "damaged";
+    if (l.conditionBreakdown.nearExpiry > 0) return "near_expiry";
+    if (lineExpected(l) > 0 && linePhysical(l) === 0) return "out_of_stock";
+    return "ok";
   }
-  function flaggedLines(audit) {
-    return (audit ? audit.lines : []).filter((l) => FLAGGED.has(l.condition));
-  }
-  function varianceLines(audit) {
-    return (audit ? audit.lines : []).filter((l) => lineVariance(l) !== 0);
+  // Approaching stock-out, not merely low: no sellable stock at all, or —
+  // only where the expected quantity is big enough for a percentage to mean
+  // anything — a quarter or less of it left in good condition.
+  function isStockOutRisk(l) {
+    if (l.status !== "audited") return false;
+    const exp = lineExpected(l);
+    if (exp <= 0) return false;
+    const good = l.conditionBreakdown.good || 0;
+    if (good === 0) return true;
+    return exp >= 5 && good <= Math.round(exp * 0.25);
   }
   function isOverstock(l) {
+    if (l.status !== "audited") return false;
     const d = lineVariance(l);
-    return d >= 5 || (l.system > 0 && l.counted >= l.system * 2 && d > 0);
+    const exp = lineExpected(l);
+    return d >= 5 || (exp > 0 && linePhysical(l) >= exp * 2 && d > 0);
+  }
+  function flaggedLines(audit) {
+    return auditLines(audit).filter((l) => lineIsCaptured(l) && dominantCondition(l) !== "ok");
+  }
+  function varianceLines(audit) {
+    return auditLines(audit).filter((l) => l.status === "audited" && lineVariance(l) !== 0);
+  }
+  function expiryLines(audit) {
+    return auditLines(audit).filter((l) => (l.conditionBreakdown.expired || 0) + (l.conditionBreakdown.nearExpiry || 0) > 0);
+  }
+  function stockOutLines(audit) {
+    return auditLines(audit).filter(isStockOutRisk);
+  }
+  function conditionTotals(a) {
+    const t = emptyCondition();
+    auditLines(a).forEach((l) => CONDITION_KEYS.forEach((c) => (t[c.k] += Number(l.conditionBreakdown[c.k]) || 0)));
+    return t;
+  }
+  // Coverage is about confidence, not health: how much of what we set out to
+  // check actually got checked. `expected` is snapshotted onto the audit at
+  // creation so a later catalogue change can't retroactively move the
+  // denominator on a closed visit.
+  function auditCoverage(a) {
+    const lines = auditLines(a);
+    const audited = lines.filter((l) => l.status === "audited").length;
+    const notFound = lines.filter((l) => l.status === "not_found").length;
+    const expected = (a && a.expectedProducts) || lines.length || products.length;
+    const skipped = Math.max(0, expected - audited - notFound);
+    return { expected, audited, notFound, skipped, pct: expected ? Math.round((audited / expected) * 100) : 0 };
+  }
+  // Only a shelf a rep can't sell from earns a stop sign; "partially
+  // available" is a nudge, and an unrated shelf (a warehouse visit) says
+  // nothing at all.
+  function shelfBadgeHTML(l) {
+    if (!l.shelfAvailability || l.shelfAvailability === "available") return "";
+    const m = shelfMeta(l.shelfAvailability);
+    const icon = l.shelfAvailability === "not_on_shelf" ? "⛔" : "◐";
+    return `<span class="shelf-badge ${esc(l.shelfAvailability)}">${icon} ${esc(m.label)}</span>`;
   }
   function conditionBadgeHTML(k) {
     const m = condMeta(k);
     return `<span class="cond-badge ${esc(k)}">${m.icon} ${esc(m.label)}</span>`;
   }
+
   function auditsFor(customerId) {
     return AuditStore.list(customerId)
       .slice()
@@ -268,8 +501,8 @@
     const reasons = [];
     const latest = auditsFor(customerId)[0];
     if (latest) {
-      if (latest.lines.some((l) => l.condition === "out_of_stock")) reasons.push({ k: "stockout", label: "Stock-out risk", cls: "danger" });
-      if (latest.lines.some((l) => l.condition === "expired" || l.condition === "near_expiry")) reasons.push({ k: "expiry", label: "Expiry risk", cls: "warn" });
+      if (stockOutLines(latest).length) reasons.push({ k: "stockout", label: "Stock-out risk", cls: "danger" });
+      if (expiryLines(latest).length) reasons.push({ k: "expiry", label: "Expiry risk", cls: "warn" });
     }
     if (visitBucketFor(customerId) === "overdue") reasons.push({ k: "overdue", label: latest ? "Audit overdue" : "Never audited", cls: "neutral" });
     if (orderingStatusFor(customerId).bucket === "overdue") reasons.push({ k: "ordering", label: "Outside ordering cycle", cls: "followup" });
@@ -282,11 +515,11 @@
   function reasonDetailText(customerId, kind) {
     const latest = auditsFor(customerId)[0];
     if (kind === "stockout") {
-      const names = (latest ? latest.lines : []).filter((l) => l.condition === "out_of_stock").map((l) => productName(l.productId));
+      const names = stockOutLines(latest).map((l) => productName(l.productId));
       return names.length ? "Out of stock: " + names.join(", ") : "";
     }
     if (kind === "expiry") {
-      const names = (latest ? latest.lines : []).filter((l) => l.condition === "expired" || l.condition === "near_expiry").map((l) => productName(l.productId));
+      const names = expiryLines(latest).map((l) => productName(l.productId));
       return names.length ? "Expiring soon: " + names.join(", ") : "";
     }
     if (kind === "overdue") return latest ? "Last audited " + fmtRelative(latest.at) : "Never audited";
@@ -313,12 +546,64 @@
   // (customerScoreFor, 4-tier label) and the Complete Audit summary
   // (computeAuditScore, its own 3-tier copy) so the two never drift apart on
   // the underlying math, only on how each screen chooses to describe it.
-  function scoreFromAudit(a) {
-    const flagged = flaggedLines(a).length;
-    const variance = varianceLines(a).length;
-    const fu = a.followUp && a.followUp.required;
-    return Math.max(0, Math.min(100, 100 - flagged * 12 - variance * 5 - (fu ? 10 : 0)));
+  // Four axes rather than one number, because "78/100" on its own doesn't
+  // tell a rep what to go fix. Each is null when this visit says nothing
+  // about it — a warehouse audit captures no shelf data, and a customer with
+  // no ordering signal has no ordering score — and nulls drop out of the
+  // roll-up instead of being counted as zero.
+  function healthBreakdown(a) {
+    const lines = auditLines(a).filter((l) => l.status === "audited");
+    const out = { stock: null, shelf: null, expiry: null, ordering: null };
+
+    if (lines.length) {
+      const clean = lines.filter((l) => !isStockOutRisk(l) && !isOverstock(l) && lineVariance(l) === 0).length;
+      out.stock = Math.round((clean / lines.length) * 100);
+
+      const shelfLines = lines.filter((l) => l.shelfAvailability);
+      if (shelfLines.length) {
+        const pts = shelfLines.reduce((s, l) => s + (l.shelfAvailability === "available" ? 1 : l.shelfAvailability === "partial" ? 0.5 : 0), 0);
+        out.shelf = Math.round((pts / shelfLines.length) * 100);
+      }
+
+      // Share of the units actually on hand that are still sellable for long
+      // enough to matter. Damaged stock is a stock-quality problem, not an
+      // expiry one, so it stays out of this axis.
+      const units = lines.reduce((s, l) => s + linePhysical(l), 0);
+      const risky = lines.reduce((s, l) => s + (l.conditionBreakdown.nearExpiry || 0) + (l.conditionBreakdown.expired || 0), 0);
+      out.expiry = units ? Math.round((1 - risky / units) * 100) : 100;
+    }
+
+    const os = a.customerId ? orderingStatusFor(a.customerId) : { bucket: "unknown" };
+    out.ordering = { on_track: 100, slipping: 70, overdue: 40 }[os.bucket] ?? null;
+    return out;
   }
+  const HEALTH_AXES = [
+    { k: "stock", label: "Stock", weight: 0.4 },
+    { k: "shelf", label: "Shelf", weight: 0.2 },
+    { k: "expiry", label: "Expiry", weight: 0.25 },
+    { k: "ordering", label: "Ordering", weight: 0.15 },
+  ];
+
+  // Raw 0-100 roll-up from one audit — shared by the per-customer health ring
+  // (customerScoreFor, 4-tier label) and the Complete Audit summary
+  // (computeAuditScore, its own 3-tier copy) so the two never drift apart on
+  // the underlying math, only on how each screen chooses to describe it.
+  // Partial coverage deliberately does NOT cost points: auditing 42 of 50
+  // products makes the score less certain, not the customer less healthy.
+  function scoreFromAudit(a) {
+    const hb = healthBreakdown(a);
+    let sum = 0, weight = 0;
+    HEALTH_AXES.forEach((ax) => {
+      if (hb[ax.k] == null) return;
+      sum += hb[ax.k] * ax.weight;
+      weight += ax.weight;
+    });
+    let score = weight ? sum / weight : 100;
+    // An open follow-up is a known unresolved issue, not just a past one.
+    if (a.followUp && a.followUp.required) score -= 8;
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+
   function scoreLabel(score) {
     if (score == null) return { cls: "unknown", label: "Not Audited" };
     if (score >= 90) return { cls: "excellent", label: "Excellent" };
@@ -788,8 +1073,8 @@
         return `<div class="attn-row">
           <span class="thumb">${p.emoji || "📦"}</span>
           <span class="nm">${esc(p.name || l.productId)}<small>Art No: ${esc(p.artNo || "—")}</small></span>
-          ${conditionBadgeHTML(l.condition)}
-          ${l.shelfAvailable ? "" : `<span class="shelf-badge off">⛔ Off shelf</span>`}
+          ${conditionBadgeHTML(dominantCondition(l))}
+          ${shelfBadgeHTML(l)}
         </div>`;
       }).join("")}
     </div>`;
@@ -818,12 +1103,13 @@
           ${a.lines.map((l) => {
             const p = productById(l.productId) || {};
             const v = lineVariance(l);
-            const vCls = v === 0 ? "match" : v > 0 ? "up" : "down";
-            const vTxt = v === 0 ? "Match" : (v > 0 ? "+" : "") + v;
+            const unverified = l.status !== "audited";
+            const vCls = unverified ? "" : v === 0 ? "match" : v > 0 ? "up" : "down";
+            const vTxt = unverified ? "—" : v === 0 ? "Match" : (v > 0 ? "+" : "") + v;
             return `<div class="detail-line">
-              <span class="pn">${esc(p.name || l.productId)}<small>Art No: ${esc(p.artNo || "—")} · System ${l.system}${esc(p.unit ? " " + p.unit : "")}</small></span>
-              <span class="cnt">Counted ${l.counted}${esc(p.unit ? " " + p.unit : "")}</span>
-              ${conditionBadgeHTML(l.condition)}
+              <span class="pn">${esc(p.name || l.productId)}<small>Art No: ${esc(p.artNo || "—")} · Expected ${lineExpected(l)}${esc(p.unit ? " " + p.unit : "")}</small></span>
+              <span class="cnt">${l.status === "not_found" ? "Not found" : `Found ${linePhysical(l)}${esc(p.unit ? " " + p.unit : "")}`}</span>
+              ${conditionBadgeHTML(dominantCondition(l))}
               <span class="var ${vCls}">${vTxt}</span>
             </div>`;
           }).join("")}
@@ -1123,20 +1409,40 @@
       .map((id) => {
         const p = productById(id);
         const line = DRAFT.lines[id];
-        return { productId: id, system: p ? p.systemStock : 0, counted: Number(line.counted), condition: line.condition || "ok", shelfAvailable: line.shelfAvailable !== false };
+        // The single-enum capture card is still the stage-1 workspace; fan
+        // its one condition out into the breakdown so the stored record is
+        // already the real shape when the product screen replaces it.
+        const out = blankLine(id, p ? p.systemStock : 0);
+        out.physical = Number(line.counted);
+        out.status = "audited";
+        const bucket = { ok: "good", near_expiry: "nearExpiry", expired: "expired", damaged: "damaged" }[line.condition || "ok"];
+        if (bucket) out.conditionBreakdown[bucket] = out.physical;
+        const onShelf = line.shelfAvailable !== false;
+        out.storageBreakdown[onShelf ? "shelf" : "backroom"] = out.physical;
+        out.shelfAvailability = onShelf ? "available" : "not_on_shelf";
+        return out;
       });
     if (!lines.length) return;
 
-    const audit = {
+    const stamp = new Date().toISOString();
+    const audit = normalizeAudit({
       id: "aud-" + customer._id + "-" + Date.now().toString(36),
-      at: DRAFT.at ? new Date(DRAFT.at).toISOString() : new Date().toISOString(),
-      auditor: DRAFT.auditor || "Mahesh",
+      at: DRAFT.at ? new Date(DRAFT.at).toISOString() : stamp,
+      status: "completed",
+      createdAt: DRAFT.createdAt || stamp,
+      startedAt: DRAFT.startedAt || stamp,
+      completedAt: stamp,
+      auditor: DRAFT.auditor || AUDITOR.name,
+      actors: { createdBy: AUDITOR.name, startedBy: AUDITOR.name, lastEditedBy: AUDITOR.name, completedBy: AUDITOR.name },
       purpose: DRAFT.purpose,
       locationId: DRAFT.locationId,
+      // Snapshot the denominator, so a later catalogue change can't move the
+      // coverage of a visit that is already closed.
+      expectedProducts: products.length,
       notes: (DRAFT.notes || "").trim(),
       lines,
       followUp: { required: false, note: "", at: "" },
-    };
+    }, customer._id);
     AuditStore.list(customer._id).unshift(audit);
     AuditStore.save();
     toast("Audit saved.");
@@ -1153,11 +1459,14 @@
   }
   function shelfHealthPct(a) {
     if (!a.lines.length) return 100;
-    return Math.round((a.lines.filter((l) => l.shelfAvailable).length / a.lines.length) * 100);
+    const rated = a.lines.filter((l) => l.shelfAvailability);
+    if (!rated.length) return 100;
+    const pts = rated.reduce((s, l) => s + (l.shelfAvailability === "available" ? 1 : l.shelfAvailability === "partial" ? 0.5 : 0), 0);
+    return Math.round((pts / rated.length) * 100);
   }
   function recommendedActions(a) {
-    const oos = a.lines.filter((l) => l.condition === "out_of_stock").map((l) => productName(l.productId));
-    const bad = a.lines.filter((l) => l.condition === "damaged" || l.condition === "expired" || l.condition === "near_expiry").map((l) => productName(l.productId));
+    const oos = stockOutLines(a).map((l) => productName(l.productId));
+    const bad = a.lines.filter((l) => lineAtRisk(l) > 0).map((l) => productName(l.productId));
     const over = a.lines.filter(isOverstock).map((l) => productName(l.productId));
     const acts = [];
     if (oos.length) acts.push({ ic: "📦", title: "Replenish", text: oos.join(", ") });
@@ -1176,9 +1485,9 @@
     if (!customer || !a) { go("customers", {}, true); return; }
 
     const score = computeAuditScore(a);
-    const oosCount = a.lines.filter((l) => l.condition === "out_of_stock").length;
+    const oosCount = stockOutLines(a).length;
     const overCount = a.lines.filter(isOverstock).length;
-    const expiryCount = a.lines.filter((l) => l.condition === "expired" || l.condition === "near_expiry").length;
+    const expiryCount = expiryLines(a).length;
     const shelfPct = shelfHealthPct(a);
     const acts = recommendedActions(a);
 

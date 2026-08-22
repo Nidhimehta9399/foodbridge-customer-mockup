@@ -200,67 +200,118 @@
     { id: "r12", name: "Ravi Verma", phone: "9312778866", supplyChainType: "PRIVATE", type: TYPE.default, createdAt: "2026-08-08" },
   ].map(customer);
 
-  /* ---- Stock AUDITS, backing the Stock Audit & Health page ---------------
-     One record per distributor visit. `lines` are keyed by productId only
-     (name/artNo/category/unit/emoji are looked up from `products` at render
-     time, so they can't drift); `system` is the stock the audit itself saw,
-     frozen at capture time. `condition` is the shelf finding for that line —
-     independent of the counted number, because "0 counted" and "shelf empty,
-     nothing to sell" (out_of_stock) are the same fact but "expired stock still
-     sitting on the shelf" is a different, non-zero-count problem entirely.
-     `followUp` records whether the visit needs a return trip. `purpose` is
-     the visit reason picked in Create Audit — see PURPOSES in stock-audit.js.
-     Dates are picked so the field-ops landing page shows real variety across
-     "Recently Audited" / "Due for Visit" / "Overdue" against SEED.today (see
-     orderingSignals below): c01 is a healthy customer who is simply due for a
-     routine check-in; c11 was visited recently but still has open issues. */
+  /* ---- Stock audits, backing Stock Audit & Health -----------------------
+     Each line is an OBSERVATION rather than a count: what was expected, what
+     was physically found, how that stock breaks down by condition and by
+     where it was stored, plus the exception detail the condition made
+     relevant. Records here are deliberately terse — normalizeLine() in
+     stock-audit.js fills in every bucket the seed leaves out, and derives
+     `physical` as the sum of the condition breakdown, so the reconciliation
+     rule can't be violated by a typo in this file.
+
+     Between them these four customers exercise the whole model: a clean
+     visit, a plain variance, near-expiry with batch detail, a confirmed
+     stock-out, damage with evidence, expired stock with a disposition, a
+     "not found" line (which is NOT the same as zero), backroom stock behind
+     a thin shelf, and a partially-completed visit.
+
+     `lines` are keyed by productId only — name/artNo/category/unit/emoji are
+     looked up from `products` at render time, so they can't drift — while
+     `expected` is the system stock the visit itself saw, frozen at capture.
+     Dates are picked so the landing page shows real variety across
+     "Recently Audited" / "Due for Visit" / "Overdue" (see orderingSignals
+     below): c01 is a healthy customer simply due for a routine check-in;
+     c11 was visited recently but still has open issues. */
   const stockAudits = {
+    // Healthy store, nothing to do. Scenario A.
     c01: [
       {
         id: "aud-c01-1",
         at: "2026-08-05T15:41:00",
+        status: "completed",
         auditor: "Mahesh",
         purpose: "routine",
+        locationId: "primary",
+        expectedProducts: 3,
+        outcome: "healthy",
         notes: "",
-        lines: [{ productId: "p01", system: 2, counted: 2, condition: "ok", shelfAvailable: true }],
-        followUp: { required: false, note: "", at: "" },
-      },
-    ],
-    c02: [
-      {
-        id: "aud-c02-1",
-        at: "2026-08-10T15:41:00",
-        auditor: "Mahesh",
-        purpose: "routine",
-        notes: "",
-        lines: [{ productId: "p06", system: 2, counted: 1, condition: "ok", shelfAvailable: true }],
-        followUp: { required: false, note: "", at: "" },
-      },
-    ],
-    c05: [
-      {
-        id: "aud-c05-1",
-        at: "2026-08-06T11:02:00",
-        auditor: "Mahesh",
-        purpose: "routine",
-        notes: "Monthly audit — aisle 3 & 4",
         lines: [
-          { productId: "p11", system: 8, counted: 8, condition: "ok", shelfAvailable: true },
-          { productId: "p12", system: 15, counted: 13, condition: "ok", shelfAvailable: true },
+          { productId: "p01", expected: 2, status: "audited", conditionBreakdown: { good: 2 }, storageBreakdown: { shelf: 2 }, shelfAvailability: "available", facings: 4 },
+          { productId: "p11", expected: 8, status: "audited", conditionBreakdown: { good: 8 }, storageBreakdown: { shelf: 8 }, shelfAvailability: "available", facings: 6 },
+          { productId: "p12", expected: 15, status: "audited", conditionBreakdown: { good: 15 }, storageBreakdown: { shelf: 12, backroom: 3 }, shelfAvailability: "available", facings: 8 },
         ],
         followUp: { required: false, note: "", at: "" },
       },
     ],
+    // A plain shortfall and a thinning shelf — no exceptions to detail.
+    c02: [
+      {
+        id: "aud-c02-1",
+        at: "2026-08-10T15:41:00",
+        status: "completed",
+        auditor: "Mahesh",
+        purpose: "routine",
+        locationId: "primary",
+        expectedProducts: 2,
+        outcome: "replenish",
+        notes: "",
+        lines: [
+          { productId: "p06", expected: 2, status: "audited", conditionBreakdown: { good: 1 }, storageBreakdown: { shelf: 1 }, shelfAvailability: "partial", facings: 2 },
+          { productId: "p10", expected: 30, status: "audited", conditionBreakdown: { good: 28 }, storageBreakdown: { shelf: 20, backroom: 8 }, shelfAvailability: "partial", facings: 5, notes: "Front two facings empty at close of day." },
+        ],
+        followUp: { required: false, note: "", at: "" },
+      },
+    ],
+    // Near-expiry stock with real batch detail, plus a slow-moving overstock.
+    c05: [
+      {
+        id: "aud-c05-1",
+        at: "2026-08-06T11:02:00",
+        status: "completed",
+        auditor: "Mahesh",
+        purpose: "routine",
+        locationId: "primary",
+        expectedProducts: 3,
+        outcome: "pull",
+        notes: "Monthly audit — aisle 3 & 4",
+        lines: [
+          { productId: "p11", expected: 8, status: "audited", conditionBreakdown: { good: 8 }, storageBreakdown: { shelf: 8 }, shelfAvailability: "available", facings: 6 },
+          {
+            productId: "p12", expected: 15, status: "audited",
+            conditionBreakdown: { good: 11, nearExpiry: 2 },
+            storageBreakdown: { shelf: 13 },
+            shelfAvailability: "available", facings: 7,
+            expiryDetails: [{ bucket: "nearExpiry", date: "2026-09-04", batch: "PG-2609-A", qty: 2 }],
+            notes: "Two packs from the June batch still on the top shelf — rotate forward.",
+          },
+          { productId: "p09", expected: 12, status: "audited", conditionBreakdown: { good: 26 }, storageBreakdown: { shelf: 6, backroom: 20 }, shelfAvailability: "available", facings: 3, notes: "Customer over-ordered last cycle; backroom is full." },
+        ],
+        followUp: { required: false, note: "", at: "" },
+      },
+    ],
+    // The full exception story, across two visits: a stock-out that gets
+    // followed up, then a partial re-visit cut short by the store closing.
     c11: [
       {
         id: "aud-c11-1",
         at: "2026-08-07T09:20:00",
+        status: "completed",
         auditor: "Mahesh",
         purpose: "routine",
+        locationId: "primary",
+        expectedProducts: 2,
+        outcome: "replenish",
         notes: "Opening count",
         lines: [
-          { productId: "p12", system: 15, counted: 15, condition: "ok", shelfAvailable: true },
-          { productId: "p01", system: 2, counted: 0, condition: "out_of_stock", shelfAvailable: false },
+          { productId: "p12", expected: 15, status: "audited", conditionBreakdown: { good: 15 }, storageBreakdown: { shelf: 15 }, shelfAvailability: "available", facings: 8 },
+          {
+            productId: "p01", expected: 2, status: "audited",
+            conditionBreakdown: {},
+            storageBreakdown: {},
+            shelfAvailability: "not_on_shelf",
+            notes: "Shelf tag still up, nothing behind it.",
+            evidence: [{ id: "ev-c11-1-a", type: "shelf", label: "Empty facing, aisle 2", note: "", capturedAt: "2026-08-07T09:22:00", capturedBy: "Mahesh" }],
+          },
         ],
         followUp: {
           required: true,
@@ -271,13 +322,46 @@
       {
         id: "aud-c11-2",
         at: "2026-08-18T10:05:00",
+        status: "completed",
         auditor: "Mahesh",
         purpose: "followup",
+        locationId: "primary",
+        expectedProducts: 8,
+        outcome: "followup",
         notes: "Follow-up visit",
+        finalNote: "Store closed at 10:40 — remaining aisles not walked.",
+        partial: { isPartial: true, reason: "store_closing", note: "Shutters came down early for a delivery." },
         lines: [
-          { productId: "p12", system: 15, counted: 10, condition: "ok", shelfAvailable: true },
-          { productId: "p01", system: 2, counted: 1, condition: "near_expiry", shelfAvailable: true },
-          { productId: "p04", system: 0, counted: 3, condition: "damaged", shelfAvailable: true },
+          { productId: "p12", expected: 15, status: "audited", conditionBreakdown: { good: 10 }, storageBreakdown: { shelf: 10 }, shelfAvailability: "available", facings: 6 },
+          {
+            productId: "p01", expected: 2, status: "audited",
+            conditionBreakdown: { nearExpiry: 1 },
+            storageBreakdown: { shelf: 1 },
+            shelfAvailability: "partial", facings: 1,
+            expiryDetails: [{ bucket: "nearExpiry", date: "2026-09-01", batch: "PET-0826", qty: 1 }],
+            notes: "Restocked since last visit, but only one unit and it's the old batch.",
+          },
+          {
+            productId: "p04", expected: 0, status: "audited",
+            conditionBreakdown: { damaged: 3 },
+            storageBreakdown: { backroom: 3 },
+            shelfAvailability: "not_on_shelf",
+            damageType: "leakage",
+            notes: "Three bottles leaking in the backroom crate — store manager already set them aside.",
+            evidence: [{ id: "ev-c11-2-a", type: "damage", label: "Leaking crate, backroom", note: "Reported by store manager", capturedAt: "2026-08-18T10:18:00", capturedBy: "Mahesh" }],
+          },
+          {
+            productId: "p09", expected: 12, status: "audited",
+            conditionBreakdown: { good: 4, expired: 2 },
+            storageBreakdown: { shelf: 2, backroom: 4 },
+            shelfAvailability: "partial", facings: 2,
+            expiryDetails: [{ bucket: "expired", date: "2026-08-14", batch: "AT-0814", qty: 2 }],
+            disposition: "pull",
+            evidence: [{ id: "ev-c11-2-b", type: "expiry", label: "Expired date code, 14 Aug", note: "", capturedAt: "2026-08-18T10:26:00", capturedBy: "Mahesh" }],
+          },
+          // Not found is NOT zero: nobody could confirm the stock either way,
+          // so this line must not be read as a stock-out.
+          { productId: "p10", expected: 30, status: "not_found", notFoundReason: "no_access", notes: "Pallet blocked by the delivery being unloaded." },
         ],
         followUp: { required: false, note: "", at: "" },
       },
