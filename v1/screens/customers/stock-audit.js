@@ -71,6 +71,15 @@
   function daysBetween(iso) {
     return Math.round((now() - new Date(iso)) / DAY);
   }
+  // "Today, 10:15 AM" / "Yesterday" / "N days ago" / "Never audited" — the
+  // relative phrasing the customer list reads against, instead of a bare date.
+  function fmtRelative(iso) {
+    if (!iso) return "Never audited";
+    const days = daysBetween(iso);
+    if (days <= 0) return "Today, " + new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+    if (days === 1) return "Yesterday";
+    return days + " days ago";
+  }
   function addressLine(addr, state, pin) {
     return [addr, state && state.name, pin].filter(Boolean).join(", ") || "No address on file";
   }
@@ -237,15 +246,6 @@
     return "overdue";
   }
 
-  function healthBucketFor(customerId) {
-    const latest = auditsFor(customerId)[0];
-    if (!latest) return "unknown";
-    if (flaggedLines(latest).length) return "at_risk";
-    if (varianceLines(latest).length) return "watch";
-    return "healthy";
-  }
-  const HEALTH_LABEL = { healthy: "Healthy", watch: "Watch", at_risk: "At Risk", unknown: "Unknown" };
-
   // Reorder cadence — synthesized signal (see SEED.orderingSignals). Absent
   // on purpose for customers with no signal yet: "Unknown" is the honest
   // answer, not a guessed "On Track".
@@ -288,16 +288,42 @@
     return "On track";
   }
 
+  // Raw 0-100 score from one audit — shared by the per-customer health ring
+  // (customerScoreFor, 4-tier label) and the Complete Audit summary
+  // (computeAuditScore, its own 3-tier copy) so the two never drift apart on
+  // the underlying math, only on how each screen chooses to describe it.
+  function scoreFromAudit(a) {
+    const flagged = flaggedLines(a).length;
+    const variance = varianceLines(a).length;
+    const fu = a.followUp && a.followUp.required;
+    return Math.max(0, Math.min(100, 100 - flagged * 12 - variance * 5 - (fu ? 10 : 0)));
+  }
+  function scoreLabel(score) {
+    if (score == null) return { cls: "unknown", label: "Not Audited" };
+    if (score >= 90) return { cls: "excellent", label: "Excellent" };
+    if (score >= 75) return { cls: "good", label: "Good" };
+    if (score >= 55) return { cls: "fair", label: "Fair" };
+    return { cls: "poor", label: "Needs Attention" };
+  }
+  // null (not a 0) for "never audited" — a customer with no visit yet has no
+  // score to show, not a score of zero.
+  function customerScoreFor(customerId) {
+    const latest = auditsFor(customerId)[0];
+    return latest ? scoreFromAudit(latest) : null;
+  }
+
   const FILTERS = [
     { k: "all", label: "All" },
     { k: "attention", label: "Needs Attention" },
     { k: "due", label: "Due for Visit" },
-    { k: "recent", label: "Recently Audited" },
     { k: "overdue", label: "Overdue" },
   ];
   function matchesFilter(customerId, filter) {
     if (filter === "all") return true;
     if (filter === "attention") return reasonsFor(customerId).length > 0;
+    if (filter === "stockout") return reasonsFor(customerId).some((r) => r.k === "stockout");
+    if (filter === "expiry") return reasonsFor(customerId).some((r) => r.k === "expiry");
+    if (filter === "needs_visit") { const vb = visitBucketFor(customerId); return vb === "due" || vb === "overdue"; }
     return visitBucketFor(customerId) === filter;
   }
   function filterCount(all, filter) {
@@ -361,33 +387,49 @@
   /* --------------------------------------------------------- persistent nav */
 
   function navActiveKey(view) {
+    if (view === "customers" || view === "customer-detail") return "customers";
     if (view === "audits") return "audits";
     return null;
   }
 
-  // Trimmed to three per the product owner's call: this is a field tool, not
-  // a place to browse — Audit History to look back, New Audit to act, Back
-  // to retrace steps within a visit. "Customers" and the "Attention" shortcut
-  // are still real views (reached from row actions and the landing filter
-  // chips), just not permanent nav real estate.
+  // Customers / Audits / + New Audit / Attention (badged) / More — the set
+  // the product owner's reference design asked for. "More" is a real
+  // overflow, not a decoration: right now the only thing behind it is Back,
+  // since that's the only cross-view action this feature has that doesn't
+  // already own a tab of its own.
   function navHTML(view) {
     const active = navActiveKey(view);
-    const canBack = STACK.length > 0;
+    const attentionCount = computeKPIs(loadCustomers()).attentionCount;
     return `
       <div class="sah-nav">
-        <button class="nav-btn ${active === "audits" ? "active" : ""}" data-nav="audits"><span class="ic">🗂️</span>Audit History</button>
+        <button class="nav-btn ${active === "customers" ? "active" : ""}" data-nav="customers"><span class="ic">🏬</span>Customers</button>
+        <button class="nav-btn ${active === "audits" ? "active" : ""}" data-nav="audits"><span class="ic">🗂️</span>Audits</button>
         <button class="nav-btn fab-slot" data-nav="create"><span class="nav-fab">+</span><span class="lbl">New Audit</span></button>
-        <button class="nav-btn ${canBack ? "" : "disabled"}" data-nav="back" ${canBack ? "" : "disabled"}><span class="ic">←</span>Back</button>
+        <button class="nav-btn" data-nav="attention"><span class="ic-wrap"><span class="ic">🔔</span>${attentionCount ? `<span class="badge">${attentionCount > 99 ? "99+" : attentionCount}</span>` : ""}</span>Attention</button>
+        <button class="nav-btn" data-nav="more"><span class="ic">•••</span>More</button>
       </div>`;
   }
   function wireNav() {
     PAGE.querySelectorAll("[data-nav]").forEach((b) => {
       b.onclick = () => {
         const k = b.dataset.nav;
-        if (k === "audits") go("audits", {}, true);
+        if (k === "customers") go("customers", {}, true);
+        else if (k === "audits") go("audits", {}, true);
         else if (k === "create") { DRAFT = null; go("create-customer", {}); }
-        else if (k === "back") back();
+        else if (k === "attention") go("customers", { filter: "attention" }, true);
+        else if (k === "more") openMoreSheet();
       };
+    });
+  }
+
+  function openMoreSheet() {
+    const canBack = STACK.length > 0;
+    sheet({
+      eyebrow: "More",
+      title: "Options",
+      actions: canBack
+        ? [{ label: "← Back", cls: "primary", onClick: back }, { label: "Close", cls: "ghost" }]
+        : [{ label: "Nothing to go back to — you're at the start.", cls: "ghost" }],
     });
   }
 
@@ -410,39 +452,67 @@
     }, 220);
   }
 
-  function reasonChipsHTML(reasons) {
-    return reasons.map((r) => `<span class="status-tag ${r.cls}">${esc(r.label)}</span>`).join("");
-  }
-
   /* ================================================================= VIEW: customers (landing) */
 
-  let CUST_STATE = { q: "", filter: "all" };
+  let CUST_STATE = { q: "", filter: "all", sort: "health", showAll: false };
+  const CUSTOMER_LIST_PREVIEW = 5;
+
+  // Deterministic, purely-decorative avatar colour/icon per customer — the
+  // reference design varies these for scannability, not to encode meaning
+  // (health is already the score ring's job).
+  const AVATAR_COLORS = ["#16a34a", "#d08420", "#eab308", "#15803d", "#64748b", "#2563eb"];
+  function avatarFor(c, i) {
+    return { color: AVATAR_COLORS[i % AVATAR_COLORS.length], icon: i % 2 ? "🛒" : "🏬" };
+  }
+
+  function sortCustomers(rows, sort) {
+    const list = rows.slice();
+    if (sort === "name") return list.sort((a, b) => titleCase(nameOf(a)).localeCompare(titleCase(nameOf(b))));
+    if (sort === "last_audit") return list.sort((a, b) => {
+      const la = auditsFor(a._id)[0], lb = auditsFor(b._id)[0];
+      if (!la && !lb) return 0;
+      if (!la) return -1; // never-audited reads as most urgent
+      if (!lb) return 1;
+      return new Date(la.at) - new Date(lb.at);
+    });
+    // "health": worst first — null (never audited) is the most urgent case,
+    // so it sorts ahead of every numeric score.
+    return list.sort((a, b) => {
+      const sa = customerScoreFor(a._id), sb = customerScoreFor(b._id);
+      if (sa == null && sb == null) return 0;
+      if (sa == null) return -1;
+      if (sb == null) return 1;
+      return sa - sb;
+    });
+  }
 
   function renderCustomers() {
-    if (CURRENT.params.filter) { CUST_STATE.filter = CURRENT.params.filter; CURRENT.params = {}; }
+    if (CURRENT.params.filter) { CUST_STATE.filter = CURRENT.params.filter; CUST_STATE.showAll = false; CURRENT.params = {}; }
     const all = loadCustomers();
     const kpi = computeKPIs(all);
     const q = CUST_STATE.q.trim().toLowerCase();
     let rows = q ? all.filter((c) => [nameOf(c), c.phone, c.email].some((v) => String(v || "").toLowerCase().includes(q))) : all;
-    rows = rows.filter((c) => matchesFilter(c._id, CUST_STATE.filter));
+    rows = sortCustomers(rows.filter((c) => matchesFilter(c._id, CUST_STATE.filter)), CUST_STATE.sort);
+    const visibleRows = CUST_STATE.showAll ? rows : rows.slice(0, CUSTOMER_LIST_PREVIEW);
 
-    const attention = all
-      .map((c) => ({ c, reasons: reasonsFor(c._id) }))
-      .filter((x) => x.reasons.length)
-      .sort((a, b) => b.reasons.length - a.reasons.length)
-      .slice(0, 4);
+    const stockoutCount = filterCount(all, "stockout");
+    const needsVisitCount = filterCount(all, "needs_visit");
+    const expiryCount = filterCount(all, "expiry");
 
     frame(`
       <div class="sah-page-head">
         <div class="row">
-          <div><h1>Customer Stock Audits</h1><p>Who needs a visit, why, and what to do next.</p></div>
+          <div><h1>Customer Stock Audits</h1><p>Plan visits, track health and take action.</p></div>
           <button class="sah-cta" id="headCta">+ Create Audit</button>
         </div>
       </div>
 
-      <div class="sah-search-row"><div class="sah-search"><input type="search" id="custQ" value="${esc(CUST_STATE.q)}" placeholder="Search customers…"></div></div>
+      <div class="sah-search-row">
+        <div class="sah-search"><input type="search" id="custQ" value="${esc(CUST_STATE.q)}" placeholder="Search customers or locations…"></div>
+        <button type="button" class="filter-icon-btn" id="filterBtn" aria-label="More filters">🔽</button>
+      </div>
       <div class="chips">
-        ${FILTERS.map((f) => `<button class="chip ${CUST_STATE.filter === f.k ? "on" : ""}" data-f="${f.k}">${esc(f.label)} <span class="count">${filterCount(all, f.k)}</span></button>`).join("")}
+        ${FILTERS.map((f) => `<button class="chip ${CUST_STATE.filter === f.k ? "on" : ""}" data-f="${f.k}">${esc(f.label)} (${filterCount(all, f.k)})</button>`).join("")}
       </div>
 
       <div class="sah-tiles">
@@ -452,26 +522,52 @@
         <div class="sah-tile red"><div class="n">${kpi.auditsDue}</div><div class="l">Audits Due</div></div>
       </div>
 
-      ${attention.length ? `
-        <div class="sec-label">Needs Attention <span class="count">${attention.length}</span></div>
-        <div class="sah-body" style="padding-top:0">
-          ${attention.map(({ c, reasons }) => `
-            <div class="reason-card" data-goto="${c._id}">
-              <div class="top">
-                <div><div class="nm">${esc(titleCase(nameOf(c)))}</div><div class="loc">${esc(addressLine(c.adress1, c.state?.name, c.postnr))}</div></div>
-                <button class="go" data-start="${c._id}">Start Audit</button>
-              </div>
-              <div class="reasons">${reasonChipsHTML(reasons)}</div>
-            </div>`).join("")}
-        </div>` : ""}
+      <div class="section-head-row">
+        <h2>Needs Attention</h2>
+        <button type="button" class="link-chev" data-f="attention">View all ›</button>
+      </div>
+      <div class="issue-card">
+        <button type="button" class="issue-row" data-issue="stockout">
+          <span class="ic-circle danger">⚠️</span>
+          <span class="txt">${stockoutCount} customer${stockoutCount === 1 ? "" : "s"} approaching stock-out</span>
+          <span class="n">${stockoutCount}</span><span class="chev">›</span>
+        </button>
+        <button type="button" class="issue-row" data-issue="needs_visit">
+          <span class="ic-circle warn">📅</span>
+          <span class="txt">${needsVisitCount} customer${needsVisitCount === 1 ? "" : "s"} due for audit</span>
+          <span class="n">${needsVisitCount}</span><span class="chev">›</span>
+        </button>
+        <button type="button" class="issue-row" data-issue="expiry">
+          <span class="ic-circle warn">⏰</span>
+          <span class="txt">${expiryCount} customer${expiryCount === 1 ? "" : "s"} with expiry risk</span>
+          <span class="n">${expiryCount}</span><span class="chev">›</span>
+        </button>
+      </div>
 
-      <div class="sec-label">Customer Health <span class="count">${rows.length}</span></div>
-      ${rows.length ? `<div class="customer-list">${rows.map(customerCardHTML).join("")}</div>` : `<div class="sah-empty"><div class="big">🔍</div><p>No customers match this view.</p></div>`}
+      <div class="section-head-row">
+        <h2>Customers</h2>
+        <label class="sort-field">Sort:
+          <select id="custSort">
+            <option value="health" ${CUST_STATE.sort === "health" ? "selected" : ""}>Health</option>
+            <option value="name" ${CUST_STATE.sort === "name" ? "selected" : ""}>Name</option>
+            <option value="last_audit" ${CUST_STATE.sort === "last_audit" ? "selected" : ""}>Last Audit</option>
+          </select>
+        </label>
+      </div>
+      ${rows.length
+        ? `<div class="customer-list">${visibleRows.map((c, i) => customerCardHTML(c, i)).join("")}</div>
+           ${rows.length > visibleRows.length ? `<button type="button" class="view-all-row" id="viewAllCust">View all customers (${rows.length}) <span class="chev">›</span></button>` : ""}`
+        : `<div class="sah-empty"><div class="big">🔍</div><p>No customers match this view.</p></div>`}
     `);
 
     $("#headCta", PAGE).onclick = () => { DRAFT = null; go("create-customer", {}); };
-    wireSearchInput("custQ", (v) => { CUST_STATE.q = v; renderCustomers(); });
-    PAGE.querySelectorAll("[data-f]").forEach((b) => (b.onclick = () => { CUST_STATE.filter = b.dataset.f; renderCustomers(); }));
+    $("#filterBtn", PAGE).onclick = () => toast("More filters — coming soon.", "info");
+    wireSearchInput("custQ", (v) => { CUST_STATE.q = v; CUST_STATE.showAll = false; renderCustomers(); });
+    $("#custSort", PAGE).onchange = (e) => { CUST_STATE.sort = e.target.value; renderCustomers(); };
+    const viewAll = $("#viewAllCust", PAGE);
+    if (viewAll) viewAll.onclick = () => { CUST_STATE.showAll = true; renderCustomers(); };
+    PAGE.querySelectorAll("[data-f]").forEach((b) => (b.onclick = () => { CUST_STATE.filter = b.dataset.f; CUST_STATE.showAll = false; renderCustomers(); }));
+    PAGE.querySelectorAll("[data-issue]").forEach((b) => (b.onclick = () => { CUST_STATE.filter = b.dataset.issue; CUST_STATE.showAll = false; renderCustomers(); }));
     PAGE.querySelectorAll("[data-goto]").forEach((el) => {
       el.onclick = (e) => {
         if (e.target.closest("[data-start]")) return;
@@ -479,30 +575,30 @@
       };
     });
     PAGE.querySelectorAll("[data-start]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); startAuditFor(b.dataset.start); }));
-    PAGE.querySelectorAll("[data-view-cust]").forEach((b) => (b.onclick = () => go("customer-detail", { customerId: b.dataset.viewCust })));
   }
 
-  function customerCardHTML(c) {
-    const health = healthBucketFor(c._id);
-    const order = orderingStatusFor(c._id);
+  function customerCardHTML(c, i) {
+    const score = customerScoreFor(c._id);
+    const sl = scoreLabel(score);
+    const av = avatarFor(c, i);
     const latest = auditsFor(c._id)[0];
+    // A <div>, not a <button>: it hosts a real <button> (Start Audit) inside
+    // it, and nesting interactive controls inside a <button> is invalid HTML
+    // — browsers silently break the DOM. Card-body clicks are handled by
+    // delegation instead (see wireCustomers' [data-goto] handler).
     return `
-      <div class="customer-card">
-        <div class="top">
-          <div><div class="nm">${esc(titleCase(nameOf(c)))}</div><div class="loc">${esc(addressLine(c.adress1, c.state?.name, c.postnr))}</div></div>
-        </div>
-        <div class="badges">
-          <span class="health-badge ${health}">${esc(HEALTH_LABEL[health])}</span>
-          <span class="order-badge ${order.bucket}">Ordering: ${esc(ORDER_LABEL[order.bucket])}</span>
-        </div>
-        <div class="meta">
-          <span class="last">${latest ? "Last audit " + esc(fmtDateShort(latest.at)) : "Never audited"}</span>
-          <span class="next">${esc(nextActionFor(c._id))}</span>
-        </div>
-        <div class="acts">
-          <button class="btn-cc ghost" data-view-cust="${c._id}">View Customer</button>
-          <button class="btn-cc primary" data-start="${c._id}">Start Audit</button>
-        </div>
+      <div class="cust-card" data-goto="${c._id}">
+        <span class="avatar" style="background:${av.color}">${av.icon}</span>
+        <span class="info">
+          <span class="nm">${esc(titleCase(nameOf(c)))}</span>
+          <span class="loc">${esc(addressLine(c.adress1, c.state?.name, c.postnr))}</span>
+          <span class="last">Last audit: ${esc(fmtRelative(latest ? latest.at : null))}</span>
+        </span>
+        <span class="side">
+          <span class="hscore"><span class="ring ${sl.cls}">${score == null ? "—" : score}</span><span class="lbl ${sl.cls}">${esc(sl.label)}</span></span>
+          <button type="button" class="btn-start-sm" data-start="${c._id}">Start Audit</button>
+          <span class="chev">›</span>
+        </span>
       </div>`;
   }
 
@@ -997,11 +1093,7 @@
   /* ================================================================= VIEW: complete */
 
   function computeAuditScore(a) {
-    const flagged = flaggedLines(a).length;
-    const variance = varianceLines(a).length;
-    const fu = a.followUp && a.followUp.required;
-    let score = 100 - flagged * 12 - variance * 5 - (fu ? 10 : 0);
-    score = Math.max(0, Math.min(100, score));
+    const score = scoreFromAudit(a);
     const cls = score >= 80 ? "good" : score >= 55 ? "fair" : "poor";
     const label = score >= 80 ? "Healthy Customer" : score >= 55 ? "Fair — Keep An Eye On It" : "Needs Attention";
     return { score, cls, label };

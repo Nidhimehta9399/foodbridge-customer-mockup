@@ -57,7 +57,13 @@
   gap: 4px; background: none; border: none; font-size: 11px; font-weight: 600;
   color: var(--muted); padding: 4px 0; line-height: 1;
 }
+.nav-btn .ic-wrap { position: relative; display: inline-block; }
 .nav-btn .ic { font-size: 20px; line-height: 1; }
+.nav-btn .badge {
+  position: absolute; top: -6px; right: -9px; min-width: 15px; height: 15px;
+  border-radius: 999px; background: var(--red); color: #fff;
+  font-size: 9px; font-weight: 800; display: grid; place-items: center; padding: 0 3px;
+}
 .nav-btn.active { color: var(--teal); font-weight: 800; }
 .nav-btn:active { opacity: .6; }
 .nav-btn.fab-slot { position: relative; }
@@ -109,13 +115,17 @@
 .sec-label .count { color: var(--muted-2); font-weight: 700; }
 .sec-label + .sec-label { margin-top: 22px; }
 
-/* ── Needs Attention (customer-level reason cards) ───────────────────────── */
-.reason-card { background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--red); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
-.reason-card .top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.reason-card .nm { font-weight: 700; font-size: 13.5px; }
-.reason-card .loc { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
-.reason-card .reasons { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-.reason-card .go { flex-shrink: 0; height: 32px; padding: 0 12px; border-radius: 8px; border: none; background: var(--teal-l); color: var(--teal-d); font-size: 12px; font-weight: 700; }
+/* ── Needs Attention — issue-type rows, not per-customer cards ────────────── */
+.link-chev { font-size: 12.5px; font-weight: 700; color: var(--teal); display: inline-flex; align-items: center; gap: 2px; background: none; border: none; padding: 0; }
+.issue-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-bottom: 18px; }
+.issue-row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--line-soft); width: 100%; text-align: left; background: none; border-left: none; border-right: none; border-top: none; }
+.issue-row:last-child { border-bottom: none; }
+.issue-row .ic-circle { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-size: 16px; flex-shrink: 0; }
+.issue-row .ic-circle.danger { background: #fee2e2; }
+.issue-row .ic-circle.warn { background: var(--amber-bg); }
+.issue-row .txt { flex: 1; font-size: 13px; font-weight: 600; color: var(--ink); }
+.issue-row .n { font-size: 15px; font-weight: 800; color: var(--ink); margin-right: 6px; }
+.issue-row .chev { color: var(--muted-2); font-size: 14px; flex-shrink: 0; }
 
 /* ── Product-level attention rows (customer detail + visit brief) ───────── */
 .attn-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-bottom: 26px; }
@@ -142,23 +152,14 @@
 .status-tag.followup { background: #dbeafe; color: var(--blue); }
 .status-tag.good { background: #dcfce7; color: var(--green-d); }
 
-/* Stock Health (customer card) */
-.health-badge { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
-.health-badge.healthy { background: #dcfce7; color: var(--green-d); }
-.health-badge.watch { background: var(--amber-bg); color: var(--amber-tx); }
-.health-badge.at_risk { background: #fee2e2; color: #b91c1c; }
-.health-badge.unknown { background: #e2e8f0; color: var(--muted); }
-
-/* Ordering Status (customer card) */
-.order-badge { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
-.order-badge.on_track { background: #dbeafe; color: var(--blue); }
-.order-badge.slipping { background: var(--amber-bg); color: var(--amber-tx); }
-.order-badge.overdue { background: #fee2e2; color: #b91c1c; }
-.order-badge.unknown { background: #e2e8f0; color: var(--muted); }
-
 /* ── Search + filter chips (reused everywhere) ───────────────────────────── */
 .sah-search-row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 .sah-search { flex: 1; min-width: 160px; position: relative; }
+.filter-icon-btn {
+  flex-shrink: 0; width: 44px; height: 44px; border-radius: 12px;
+  border: 1px solid var(--line); background: #fff; color: var(--muted);
+  display: grid; place-items: center; font-size: 16px;
+}
 .sah-search input {
   width: 100%; height: 44px; border: 1px solid var(--line); border-radius: 12px;
   padding: 0 14px 0 38px; font-size: 14px; outline: none; background: #fff;
@@ -176,20 +177,61 @@
 .chip.on { background: var(--teal); color: #fff; border-color: var(--teal); }
 .chip .count { opacity: .75; margin-left: 3px; }
 
+/* ── Section header with a sort control (Customers list) ─────────────────── */
+.section-head-row { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 10px; }
+.section-head-row h2 { margin: 0; font-size: 15px; font-weight: 800; color: var(--ink); }
+.sort-field { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+.sort-field select {
+  border: 1px solid var(--line); border-radius: 999px; background: #fff;
+  padding: 5px 10px; font-size: 12px; font-weight: 700; color: var(--ink); outline: none;
+}
+
 /* ── Customer Health cards (the main list — cards, not a dense table) ────── */
-.customer-list { display: flex; flex-direction: column; gap: 10px; }
-.customer-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
-.customer-card .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.customer-card .nm { font-weight: 700; font-size: 14.5px; color: var(--ink); }
-.customer-card .loc { font-size: 12px; color: var(--muted); margin-top: 2px; }
-.customer-card .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-.customer-card .meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft); font-size: 12px; }
-.customer-card .meta .last { color: var(--muted); }
-.customer-card .meta .next { font-weight: 700; color: var(--ink); text-align: right; }
-.customer-card .acts { display: flex; gap: 8px; margin-top: 10px; }
-.btn-cc { flex: 1; height: 36px; border-radius: 9px; font-size: 12.5px; font-weight: 700; border: none; }
-.btn-cc.ghost { background: var(--slate-50); color: var(--ink); border: 1px solid var(--line); }
-.btn-cc.primary { background: var(--teal); color: #fff; }
+.customer-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+.cust-card { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 12px 12px 14px; width: 100%; text-align: left; cursor: pointer; }
+.cust-card .avatar {
+  width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center; font-size: 18px; color: #fff;
+}
+.cust-card .info { flex: 1; min-width: 0; }
+/* .nm/.loc/.last are <span>s so text-overflow:ellipsis (which needs a block
+   formatting context) is a no-op without an explicit display:block — without
+   it these silently fall back to normal inline wrapping instead of
+   truncating, which is what let "Last audit: …" wrap and stretch the card. */
+.cust-card .nm, .cust-card .loc, .cust-card .last {
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cust-card .nm { font-weight: 700; font-size: 13.5px; color: var(--ink); }
+.cust-card .loc { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+.cust-card .last { font-size: 11px; color: var(--muted-2); margin-top: 2px; }
+.cust-card .side { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.cust-card .chev { color: var(--muted-2); font-size: 16px; flex-shrink: 0; padding-left: 2px; }
+
+.btn-start-sm { flex-shrink: 0; height: 34px; padding: 0 13px; border-radius: 9px; background: var(--teal); color: #fff; font-size: 12px; font-weight: 700; border: none; white-space: nowrap; }
+
+/* Per-customer health score ring — a lighter, outlined sibling of .score-ring
+   (which stays a solid fill, purpose-built for the Complete Audit hero). */
+.hscore { display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; width: 46px; }
+.hscore .ring {
+  width: 42px; height: 42px; border-radius: 50%; border: 3px solid var(--line);
+  display: grid; place-items: center; font-weight: 800; font-size: 13px; background: #fff;
+}
+.hscore .ring.excellent { border-color: #16a34a; color: #16a34a; }
+.hscore .ring.good { border-color: var(--green-d); color: var(--green-d); }
+.hscore .ring.fair { border-color: var(--orange); color: var(--orange); }
+.hscore .ring.poor { border-color: var(--red); color: var(--red); }
+.hscore .ring.unknown { border-style: dashed; color: var(--muted-2); }
+.hscore .lbl { font-size: 9.5px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.hscore .lbl.excellent, .hscore .lbl.good { color: var(--green-d); }
+.hscore .lbl.fair { color: var(--orange); }
+.hscore .lbl.poor { color: var(--red); }
+
+.view-all-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 14px; font-size: 13px; font-weight: 700; color: var(--ink); width: 100%;
+}
+.view-all-row .chev { color: var(--muted-2); font-weight: 400; }
 
 /* ── Audits view (flat visit history across every customer) ─────────────── */
 .audit-row-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; cursor: pointer; }
