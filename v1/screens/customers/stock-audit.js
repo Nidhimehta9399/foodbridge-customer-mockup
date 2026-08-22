@@ -489,7 +489,6 @@
   function renderCustomers() {
     if (CURRENT.params.filter) { CUST_STATE.filter = CURRENT.params.filter; CUST_STATE.showAll = false; CURRENT.params = {}; }
     const all = loadCustomers();
-    const kpi = computeKPIs(all);
     const q = CUST_STATE.q.trim().toLowerCase();
     let rows = q ? all.filter((c) => [nameOf(c), c.phone, c.email].some((v) => String(v || "").toLowerCase().includes(q))) : all;
     rows = sortCustomers(rows.filter((c) => matchesFilter(c._id, CUST_STATE.filter)), CUST_STATE.sort);
@@ -501,10 +500,7 @@
 
     frame(`
       <div class="sah-page-head">
-        <div class="row">
-          <div><h1>Customer Stock Audits</h1><p>Plan visits, track health and take action.</p></div>
-          <button class="sah-cta" id="headCta">+ Create Audit</button>
-        </div>
+        <h1>Customer Stock Audits</h1><p>Plan visits, track health and take action.</p>
       </div>
 
       <div class="sah-search-row">
@@ -512,13 +508,6 @@
       </div>
       <div class="chips">
         ${FILTERS.map((f) => `<button class="chip ${CUST_STATE.filter === f.k ? "on" : ""}" data-f="${f.k}">${esc(f.label)} (${filterCount(all, f.k)})</button>`).join("")}
-      </div>
-
-      <div class="sah-tiles">
-        <div class="sah-tile navy"><div class="n">${kpi.visitsPlanned}</div><div class="l">Visits Planned</div></div>
-        <div class="sah-tile green"><div class="n">${kpi.completedThisWeek}</div><div class="l">Audits Completed (7d)</div></div>
-        <div class="sah-tile orange"><div class="n">${kpi.attentionCount}</div><div class="l">Need Attention</div></div>
-        <div class="sah-tile red"><div class="n">${kpi.auditsDue}</div><div class="l">Audits Due</div></div>
       </div>
 
       <div class="section-head-row">
@@ -559,7 +548,6 @@
         : `<div class="sah-empty"><div class="big">🔍</div><p>No customers match this view.</p></div>`}
     `);
 
-    $("#headCta", PAGE).onclick = () => { DRAFT = null; go("create-customer", {}); };
     wireSearchInput("custQ", (v) => { CUST_STATE.q = v; CUST_STATE.showAll = false; renderCustomers(); });
     $("#custSort", PAGE).onchange = (e) => { CUST_STATE.sort = e.target.value; renderCustomers(); };
     const viewAll = $("#viewAllCust", PAGE);
