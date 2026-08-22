@@ -253,6 +253,49 @@
     },
   };
 
+  const DRAFTS_KEY = "fb-discovery-stock-draft-audits-v1";
+  // An audit in progress. A rep walks out of a store mid-count all the time —
+  // a delivery blocks the aisle, the shutters come down, the phone rings —
+  // and losing the count because the page reloaded would make the whole
+  // feature untrustworthy. One open draft per customer: a rep is in one
+  // store at a time, but may have left one half-done at another.
+  const DraftStore = {
+    state: {},
+    load() {
+      try {
+        this.state = JSON.parse(localStorage.getItem(DRAFTS_KEY) || "null") || {};
+      } catch (e) {
+        this.state = {};
+      }
+      return this.state;
+    },
+    save() {
+      try {
+        localStorage.setItem(DRAFTS_KEY, JSON.stringify(this.state));
+      } catch (e) {
+        /* private mode — the prototype still works, it just doesn't persist */
+      }
+    },
+    get(customerId) { return this.state[customerId] || null; },
+    put(draft) { if (draft && draft.customerId) { this.state[draft.customerId] = draft; this.save(); } },
+    clear(customerId) { delete this.state[customerId]; this.save(); },
+    ids() { return Object.keys(this.state); },
+  };
+  function persistDraft() {
+    if (!DRAFT || !DRAFT.customerId) return;
+    // Opening a product screen creates its line so the fields have something
+    // to write into; one the rep backed out of without counting is not part
+    // of the visit, so it doesn't belong in the saved draft.
+    Object.keys(DRAFT.lines).forEach((id) => {
+      if (!lineIsCaptured(DRAFT.lines[id])) delete DRAFT.lines[id];
+    });
+    DraftStore.put(DRAFT);
+  }
+  function draftProgress(d) {
+    const captured = Object.keys(d.lines || {}).filter((id) => d.lines[id] && lineIsCaptured(d.lines[id])).length;
+    return { captured, total: (SEED.products || []).length };
+  }
+
   const products = SEED.products || [];
   const productById = (id) => products.find((p) => p.id === id);
   const productName = (id) => (productById(id) || {}).name || id;
@@ -343,6 +386,15 @@
     abandoned: { label: "Abandoned", cls: "danger" },
   };
   const statusMeta = (k) => AUDIT_STATUS[k] || AUDIT_STATUS.completed;
+  // Reasons a visit stopped early. Abandoned means it never really started;
+  // partial means it ran and got cut short — see the closure screen.
+  const PARTIAL_REASONS = [
+    { k: "store_closing", label: "Store closing" },
+    { k: "product_unavailable", label: "Product unavailable" },
+    { k: "access_restricted", label: "Access restricted" },
+    { k: "time", label: "Time constraint" },
+    { k: "other", label: "Other" },
+  ];
   const OPEN_STATUSES = new Set(["draft", "in_progress", "paused", "review"]);
 
   // The signed-in rep. Auto-populated everywhere the spec says "do not make
@@ -523,6 +575,14 @@
     const icon = l.shelfAvailability === "not_on_shelf" ? "⛔" : "◐";
     return `<span class="shelf-badge ${esc(l.shelfAvailability)}">${icon} ${esc(m.label)}</span>`;
   }
+  // A visit that was abandoned in the doorway is not a visit where
+  // everything matched — say which it was before showing any counts.
+  function auditStatusHTML(a) {
+    if (a.status === "completed") return "";
+    const m = statusMeta(a.status);
+    const why = a.partial && a.partial.reason ? " · " + (ABANDON_REASONS.find((r) => r.k === a.partial.reason) || PARTIAL_REASONS.find((r) => r.k === a.partial.reason) || { label: "" }).label : "";
+    return `<span class="status-tag ${m.cls}">${esc(m.label)}${esc(why)}</span>`;
+  }
   function conditionBadgeHTML(k) {
     const m = condMeta(k);
     return `<span class="cond-badge ${esc(k)}">${m.icon} ${esc(m.label)}</span>`;
@@ -532,6 +592,14 @@
     return AuditStore.list(customerId)
       .slice()
       .sort((a, b) => new Date(b.at) - new Date(a.at));
+  }
+  // Every health signal reads off the last COMPLETED visit, never simply the
+  // last record. A visit that was abandoned in the doorway observed nothing,
+  // and letting it stand as "the latest audit" would wipe out the findings of
+  // the real one before it and leave the customer looking freshly checked.
+  // The history view still shows every record, abandoned ones included.
+  function lastCompleted(customerId) {
+    return auditsFor(customerId).find((a) => a.status === "completed") || null;
   }
 
   /* ------------------------------------------------------- health signals */
@@ -543,7 +611,7 @@
   // only ever land on "normal" or "due", never "recent": a customer that has
   // genuinely never been audited was never *recently* audited either.
   function visitBucketFor(customerId) {
-    const latest = auditsFor(customerId)[0];
+    const latest = lastCompleted(customerId);
     if (latest) {
       const days = daysBetween(latest.at);
       if (days <= 7) return "recent";
@@ -577,7 +645,7 @@
   // expiry risk, overdue audits, and customers outside their ordering cycle.
   function reasonsFor(customerId) {
     const reasons = [];
-    const latest = auditsFor(customerId)[0];
+    const latest = lastCompleted(customerId);
     if (latest) {
       if (stockOutLines(latest).length) reasons.push({ k: "stockout", label: "Stock-out risk", cls: "danger" });
       if (expiryLines(latest).length) reasons.push({ k: "expiry", label: "Expiry risk", cls: "warn" });
@@ -591,7 +659,7 @@
   // reason chip in the Needs Attention drill-down. Generic labels ("Stock-out
   // risk") tell you the category; this tells you which product or how late.
   function reasonDetailText(customerId, kind) {
-    const latest = auditsFor(customerId)[0];
+    const latest = lastCompleted(customerId);
     if (kind === "stockout") {
       const names = stockOutLines(latest).map((l) => productName(l.productId));
       return names.length ? "Out of stock: " + names.join(", ") : "";
@@ -609,7 +677,7 @@
   }
 
   function nextActionFor(customerId) {
-    const latest = auditsFor(customerId)[0];
+    const latest = lastCompleted(customerId);
     if (latest && latest.followUp && latest.followUp.required) return "Follow up";
     const reasons = reasonsFor(customerId);
     if (reasons.some((r) => r.k === "stockout" || r.k === "expiry")) return "Review flags";
@@ -692,7 +760,7 @@
   // null (not a 0) for "never audited" — a customer with no visit yet has no
   // score to show, not a score of zero.
   function customerScoreFor(customerId) {
-    const latest = auditsFor(customerId)[0];
+    const latest = lastCompleted(customerId);
     return latest ? scoreFromAudit(latest) : null;
   }
 
@@ -748,6 +816,12 @@
     })[CURRENT.view]?.();
   }
 
+  function startButtonHTML(customerId) {
+    return DraftStore.get(customerId)
+      ? `<button type="button" class="btn-start-sm resume" data-resume="${esc(customerId)}">Resume</button>`
+      : `<button type="button" class="btn-start-sm" data-start="${esc(customerId)}">Start Audit</button>`;
+  }
+
   function newDraft(customerId) {
     const stamp = new Date();
     return {
@@ -756,8 +830,10 @@
       purpose: "",
       at: stamp.toISOString().slice(0, 16),
       auditor: AUDITOR.name,
+      status: "draft",
       createdAt: stamp.toISOString(),
       startedAt: null,
+      pausedAt: null,
       notes: "",
       lines: {},
     };
@@ -768,6 +844,8 @@
   // step is satisfied automatically and the details screen says so, rather
   // than making a rep tap through a list of one.
   function beginWizard(customerId) {
+    const open = DraftStore.get(customerId);
+    if (open) { resumeOrRestartSheet(customerId, open); return; }
     DRAFT = newDraft(customerId);
     const locs = locationsFor(loadCustomer(customerId));
     if (locs.length === 1) {
@@ -778,6 +856,43 @@
     }
   }
   const startAuditFor = beginWizard;
+
+  function resumeDraft(customerId) {
+    const d = DraftStore.get(customerId);
+    if (!d) { beginWizard(customerId); return; }
+    DRAFT = d;
+    DRAFT.status = "in_progress";
+    DRAFT.pausedAt = null;
+    DRAFT.actorsLastEditedBy = AUDITOR.name;
+    persistDraft();
+    go("workspace", { customerId }, true);
+  }
+
+  // Starting fresh would throw away a real count, so it's a decision the rep
+  // makes explicitly rather than something a stray tap does for them.
+  function resumeOrRestartSheet(customerId, open) {
+    const prog = draftProgress(open);
+    const customer = loadCustomer(customerId);
+    sheet({
+      eyebrow: placeLine(customer, open.locationId),
+      title: "You have a visit in progress here",
+      sub: `${prog.captured} of ${prog.total} products counted, paused ${fmtRelative(open.pausedAt || open.startedAt || open.createdAt).toLowerCase()}.`,
+      actions: [
+        { label: "Resume that visit", cls: "primary", onClick: () => resumeDraft(customerId) },
+        {
+          label: "Start a new one instead",
+          cls: "ghost",
+          onClick: () => {
+            DraftStore.clear(customerId);
+            DRAFT = newDraft(customerId);
+            const locs = locationsFor(loadCustomer(customerId));
+            if (locs.length === 1) { DRAFT.locationId = locs[0].id; go("create-details", { customerId }); }
+            else go("create-location", { customerId });
+          },
+        },
+      ],
+    });
+  }
 
   /* --------------------------------------------------------- persistent nav */
 
@@ -948,18 +1063,23 @@
     PAGE.querySelectorAll("[data-na]").forEach((b) => (b.onclick = () => go("needs-attention", { filter: b.dataset.na })));
     PAGE.querySelectorAll("[data-goto]").forEach((el) => {
       el.onclick = (e) => {
-        if (e.target.closest("[data-start]")) return;
+        if (e.target.closest("[data-start],[data-resume]")) return;
         go("customer-detail", { customerId: el.dataset.goto });
       };
     });
+    wireStartButtons();
+  }
+
+  function wireStartButtons() {
     PAGE.querySelectorAll("[data-start]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); startAuditFor(b.dataset.start); }));
+    PAGE.querySelectorAll("[data-resume]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); resumeDraft(b.dataset.resume); }));
   }
 
   function customerCardHTML(c, i) {
     const score = customerScoreFor(c._id);
     const sl = scoreLabel(score);
     const av = avatarFor(c, i);
-    const latest = auditsFor(c._id)[0];
+    const latest = lastCompleted(c._id);
     // A <div>, not a <button>: it hosts a real <button> (Start Audit) inside
     // it, and nesting interactive controls inside a <button> is invalid HTML
     // — browsers silently break the DOM. Card-body clicks are handled by
@@ -974,7 +1094,7 @@
         </span>
         <span class="side">
           <span class="hscore"><span class="ring ${sl.cls}">${score == null ? "—" : score}</span><span class="lbl ${sl.cls}">${esc(sl.label)}</span></span>
-          <button type="button" class="btn-start-sm" data-start="${c._id}">Start Audit</button>
+          ${startButtonHTML(c._id)}
           <span class="chev">›</span>
         </span>
       </div>`;
@@ -1021,11 +1141,11 @@
     PAGE.querySelectorAll("[data-naf]").forEach((b) => (b.onclick = () => { NA_STATE.filter = b.dataset.naf; renderNeedsAttention(); }));
     PAGE.querySelectorAll("[data-goto]").forEach((el) => {
       el.onclick = (e) => {
-        if (e.target.closest("[data-start]")) return;
+        if (e.target.closest("[data-start],[data-resume]")) return;
         go("customer-detail", { customerId: el.dataset.goto });
       };
     });
-    PAGE.querySelectorAll("[data-start]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); startAuditFor(b.dataset.start); }));
+    wireStartButtons();
   }
 
   function naCardHTML(c, reasons) {
@@ -1037,7 +1157,7 @@
             <span class="nm">${esc(titleCase(nameOf(c)))}</span>
             <span class="loc">${esc(addressLine(c.adress1, c.state?.name, c.postnr))}</span>
           </span>
-          <button type="button" class="btn-start-sm" data-start="${c._id}">Start Audit</button>
+          ${startButtonHTML(c._id)}
           <span class="chev">›</span>
         </div>
         <div class="reasons">${reasons.map((r) => `<span class="status-tag ${r.cls}">${esc(r.label)}</span>`).join("")}</div>
@@ -1086,7 +1206,8 @@
         </div>
         <span class="purpose">${esc(purposeMeta(a.purpose).icon)} ${esc(purposeMeta(a.purpose).label)}</span>
         <div class="stats">
-          ${variance ? `<span class="status-tag warn">${variance} variance${variance === 1 ? "" : "s"}</span>` : `<span class="status-tag neutral">All matched</span>`}
+          ${auditStatusHTML(a)}
+          ${a.status !== "completed" ? "" : variance ? `<span class="status-tag warn">${variance} variance${variance === 1 ? "" : "s"}</span>` : `<span class="status-tag neutral">All matched</span>`}
           ${flagged ? `<span class="status-tag danger">${flagged} flagged</span>` : ""}
           ${a.followUp && a.followUp.required ? `<span class="status-tag followup">Follow-up needed</span>` : ""}
         </div>
@@ -1106,11 +1227,12 @@
     if (openAuditId) { HIST = { q: "", filter: "all", openId: openAuditId }; CURRENT.params = { customerId }; }
 
     const audits = auditsFor(customerId);
-    const latest = audits[0] || null;
+    const latest = lastCompleted(customerId);
     const openVariances = latest ? varianceLines(latest).length : 0;
     const attention = latest ? flaggedLines(latest) : [];
     const followUpCount = audits.filter((a) => a.followUp && a.followUp.required).length;
     const order = orderingStatusFor(customerId);
+    const openDraft = DraftStore.get(customerId);
 
     let visible = audits;
     if (HIST.filter === "followup") visible = visible.filter((a) => a.followUp && a.followUp.required);
@@ -1129,6 +1251,11 @@
           <button class="sah-cta" id="startAudit">+ Start Audit</button>
         </div>
       </div>
+      ${openDraft ? `<div class="resume-card" id="resumeCard">
+        <span class="ic">⏸️</span>
+        <span class="txt"><b>Visit in progress</b>${draftProgress(openDraft).captured} of ${draftProgress(openDraft).total} products counted · ${esc(purposeMeta(openDraft.purpose).label)}</span>
+        <span class="go">Resume ›</span>
+      </div>` : ""}
       <div class="sah-tiles">
         <div class="sah-tile navy"><div class="n">${openVariances}</div><div class="l">Open Variances</div></div>
         <div class="sah-tile orange"><div class="n">${attention.length}</div><div class="l">Attention Items</div></div>
@@ -1149,6 +1276,8 @@
     `);
 
     $("#startAudit", PAGE).onclick = () => startAuditFor(customerId);
+    const resumeCard = $("#resumeCard", PAGE);
+    if (resumeCard) resumeCard.onclick = () => resumeDraft(customerId);
     wireSearchInput("histQ", (v) => { HIST.q = v; renderCustomerDetail(customerId); });
     PAGE.querySelectorAll("[data-hf]").forEach((b) => (b.onclick = () => { HIST.filter = b.dataset.hf; renderCustomerDetail(customerId); }));
     PAGE.querySelectorAll("[data-toggle]").forEach((el) => (el.onclick = () => { HIST.openId = HIST.openId === el.dataset.toggle ? null : el.dataset.toggle; renderCustomerDetail(customerId); }));
@@ -1178,8 +1307,7 @@
         return `<div class="attn-row">
           <span class="thumb">${p.emoji || "📦"}</span>
           <span class="nm">${esc(p.name || l.productId)}<small>Art No: ${esc(p.artNo || "—")}</small></span>
-          ${conditionBadgeHTML(dominantCondition(l))}
-          ${shelfBadgeHTML(l)}
+          <span class="badges">${conditionBadgeHTML(dominantCondition(l))}${shelfBadgeHTML(l)}${l.status === "not_found" && l.notFoundReason ? `<span class="shelf-badge">${esc(notFoundMeta(l.notFoundReason).label)}</span>` : ""}</span>
         </div>`;
       }).join("")}
     </div>`;
@@ -1196,7 +1324,8 @@
             <div class="when">${esc(fmtDate(a.at))}</div>
             <div class="who">${esc(a.auditor || "—")} · ${esc(purposeMeta(a.purpose).label)} · ${a.lines.length} product${a.lines.length === 1 ? "" : "s"}</div>
             <div class="stats">
-              ${variance ? `<span class="status-tag warn">${variance} variance${variance === 1 ? "" : "s"}</span>` : `<span class="status-tag neutral">All matched</span>`}
+              ${auditStatusHTML(a)}
+              ${a.status !== "completed" ? "" : variance ? `<span class="status-tag warn">${variance} variance${variance === 1 ? "" : "s"}</span>` : `<span class="status-tag neutral">All matched</span>`}
               ${flagged ? `<span class="status-tag danger">${flagged} flagged</span>` : ""}
               ${a.followUp && a.followUp.required ? `<span class="status-tag followup">Follow-up needed</span>` : ""}
             </div>
@@ -1385,7 +1514,7 @@
     const customer = loadCustomer(CURRENT.params.customerId);
     if (!customer || !DRAFT) { go("customers", {}, true); return; }
     const audits = auditsFor(customer._id);
-    const last = audits[0] || null;
+    const last = lastCompleted(customer._id);
     const order = orderingStatusFor(customer._id);
     const attention = last ? flaggedLines(last) : [];
     const issues = audits
@@ -1467,8 +1596,10 @@
     const customer = loadCustomer(CURRENT.params.customerId);
     if (!customer || !DRAFT) { go("customers", {}, true); return; }
     if (!DRAFT.startedAt) DRAFT.startedAt = new Date().toISOString();
+    if (DRAFT.status === "draft") DRAFT.status = "in_progress";
+    persistDraft();
 
-    const lastAudit = auditsFor(customer._id)[0] || null;
+    const lastAudit = lastCompleted(customer._id);
     const q = WS_STATE.q.trim().toLowerCase();
     const matches = (p) => !q || p.name.toLowerCase().includes(q) || String(p.artNo).toLowerCase().includes(q) || (p.category || "").toLowerCase().includes(q);
 
@@ -1580,10 +1711,77 @@
       title: "Leave this audit?",
       sub: `${prog.captured} of ${prog.total} products counted so far.`,
       actions: [
+        { label: "Pause — keep my progress", cls: "primary", onClick: () => pauseAudit(customer) },
         { label: "Keep counting", cls: "ghost" },
-        { label: "Discard this audit", cls: "danger", onClick: () => { DRAFT = null; toast("Audit discarded."); go("customer-detail", { customerId: customer._id }, true); } },
+        { label: "End this visit", cls: "danger", onClick: () => { endVisitSheet(customer); return false; } },
       ],
     });
+  }
+
+  function pauseAudit(customer) {
+    DRAFT.status = "paused";
+    DRAFT.pausedAt = new Date().toISOString();
+    persistDraft();
+    const prog = wsProgress();
+    DRAFT = null;
+    toast(`Paused — ${prog.captured} of ${prog.total} products saved.`);
+    go("customer-detail", { customerId: customer._id }, true);
+  }
+
+  // A visit that couldn't happen is still a fact worth recording. The
+  // alternative — deleting it — leaves a customer looking simply un-visited,
+  // which hides a store that keeps being inaccessible.
+  const ABANDON_REASONS = [
+    { k: "warehouse_inaccessible", label: "Warehouse inaccessible" },
+    { k: "customer_unavailable", label: "Customer unavailable" },
+    { k: "store_closed", label: "Store closed" },
+    { k: "permission", label: "Permission issue" },
+    { k: "other", label: "Other" },
+  ];
+
+  function endVisitSheet(customer) {
+    let picked = null;
+    const s = sheet({
+      eyebrow: placeLine(customer, DRAFT.locationId),
+      title: "End this visit?",
+      sub: "It gets recorded as an incomplete visit, with no counts. Pick what stopped it.",
+      body: `<div class="pd-opts sheet-opts">${ABANDON_REASONS.map((r) => `<button type="button" class="pd-opt" data-ab="${r.k}">${esc(r.label)}</button>`).join("")}</div>`,
+      actions: [
+        { label: "End visit", cls: "danger", onClick: () => { if (!picked) { toast("Pick what stopped it.", "info"); return false; } abandonAudit(customer, picked); } },
+        { label: "Discard it instead", cls: "ghost", onClick: () => { DraftStore.clear(customer._id); DRAFT = null; toast("Audit discarded."); go("customer-detail", { customerId: customer._id }, true); } },
+      ],
+    });
+    s.el.querySelectorAll("[data-ab]").forEach((b) => (b.onclick = () => {
+      picked = b.dataset.ab;
+      s.el.querySelectorAll("[data-ab]").forEach((x) => x.classList.toggle("on", x === b));
+    }));
+  }
+
+  function abandonAudit(customer, reason) {
+    const stamp = new Date().toISOString();
+    const lines = Object.keys(DRAFT.lines).map((id) => DRAFT.lines[id]).filter(lineIsCaptured);
+    const audit = normalizeAudit({
+      id: "aud-" + customer._id + "-" + Date.now().toString(36),
+      at: DRAFT.at ? new Date(DRAFT.at).toISOString() : stamp,
+      status: "abandoned",
+      createdAt: DRAFT.createdAt || stamp,
+      startedAt: DRAFT.startedAt || stamp,
+      auditor: AUDITOR.name,
+      actors: { createdBy: AUDITOR.name, startedBy: AUDITOR.name, lastEditedBy: AUDITOR.name, completedBy: null },
+      purpose: DRAFT.purpose,
+      locationId: DRAFT.locationId,
+      expectedProducts: products.length,
+      notes: (DRAFT.notes || "").trim(),
+      partial: { isPartial: true, reason, note: "" },
+      lines,
+      followUp: { required: false, note: "", at: "" },
+    }, customer._id);
+    AuditStore.list(customer._id).unshift(audit);
+    AuditStore.save();
+    DraftStore.clear(customer._id);
+    DRAFT = null;
+    toast("Visit recorded as incomplete.");
+    go("customer-detail", { customerId: customer._id }, true);
   }
 
   /* ================================================================= VIEW: product (one product's observation) */
@@ -1954,7 +2152,8 @@
   // not have to return to the list after every single product.
   function advance(customer, p, skipped) {
     if (skipped) delete DRAFT.lines[p.id];
-    const next = nextUncaptured(auditsFor(customer._id)[0] || null, p.id);
+    persistDraft();
+    const next = nextUncaptured(lastCompleted(customer._id), p.id);
     if (next) go("product", { customerId: customer._id, productId: next.id }, true);
     else { toast("That's everything — ready to review."); go("workspace", { customerId: customer._id }, true); }
   }
@@ -1991,6 +2190,7 @@
     }, customer._id);
     AuditStore.list(customer._id).unshift(audit);
     AuditStore.save();
+    DraftStore.clear(customer._id);
     toast("Audit saved.");
     go("complete", { customerId: customer._id, auditId: audit.id }, true);
   }
@@ -2083,6 +2283,7 @@
   function mount() {
     PAGE = mountShell($("#app"), { screen: "stock-audit", crumb: "Stock Audit & Health", tenant: SEED.tenant });
     LocationStore.load();
+    DraftStore.load();
     AuditStore.load();
 
     const params = new URLSearchParams(location.search);
