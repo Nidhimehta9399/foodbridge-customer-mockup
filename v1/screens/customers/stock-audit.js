@@ -489,8 +489,22 @@
     if (CURRENT.params.filter) { CUST_STATE.filter = CURRENT.params.filter; CURRENT.params = {}; }
     const all = loadCustomers();
     const q = CUST_STATE.q.trim().toLowerCase();
-    let rows = q ? all.filter((c) => [nameOf(c), c.phone, c.email].some((v) => String(v || "").toLowerCase().includes(q))) : all;
-    rows = sortCustomers(rows.filter((c) => matchesFilter(c._id, CUST_STATE.filter)), CUST_STATE.sort);
+    const searching = q.length > 0;
+
+    // While searching, the query is the whole story: it overrides the chip
+    // filter (rather than combining with it) and everything else below the
+    // search box — chips, Needs Attention, the Customers/Sort header — steps
+    // aside so the result list isn't sitting under stats that don't describe it.
+    let rows;
+    if (searching) {
+      rows = all.filter((c) =>
+        [nameOf(c), c.phone, c.email, addressLine(c.adress1, c.state?.name, c.postnr)]
+          .some((v) => String(v || "").toLowerCase().includes(q)),
+      );
+    } else {
+      rows = all.filter((c) => matchesFilter(c._id, CUST_STATE.filter));
+    }
+    rows = sortCustomers(rows, CUST_STATE.sort);
 
     const stockoutCount = filterCount(all, "stockout");
     const needsVisitCount = filterCount(all, "needs_visit");
@@ -504,6 +518,7 @@
       <div class="sah-search-row">
         <div class="sah-search"><input type="search" id="custQ" value="${esc(CUST_STATE.q)}" placeholder="Search customers or locations…"></div>
       </div>
+      ${searching ? "" : `
       <div class="chips">
         ${FILTERS.map((f) => `<button class="chip ${CUST_STATE.filter === f.k ? "on" : ""}" data-f="${f.k}">${esc(f.label)} (${filterCount(all, f.k)})</button>`).join("")}
       </div>
@@ -539,14 +554,15 @@
             <option value="last_audit" ${CUST_STATE.sort === "last_audit" ? "selected" : ""}>Last Audit</option>
           </select>
         </label>
-      </div>
+      </div>`}
       ${rows.length
         ? `<div class="customer-list">${rows.map((c, i) => customerCardHTML(c, i)).join("")}</div>`
         : `<div class="sah-empty"><div class="big">🔍</div><p>No customers match this view.</p></div>`}
     `);
 
     wireSearchInput("custQ", (v) => { CUST_STATE.q = v; renderCustomers(); });
-    $("#custSort", PAGE).onchange = (e) => { CUST_STATE.sort = e.target.value; renderCustomers(); };
+    const sortSel = $("#custSort", PAGE);
+    if (sortSel) sortSel.onchange = (e) => { CUST_STATE.sort = e.target.value; renderCustomers(); };
     PAGE.querySelectorAll("[data-f]").forEach((b) => (b.onclick = () => { CUST_STATE.filter = b.dataset.f; renderCustomers(); }));
     PAGE.querySelectorAll("[data-issue]").forEach((b) => (b.onclick = () => { CUST_STATE.filter = b.dataset.issue; renderCustomers(); }));
     PAGE.querySelectorAll("[data-goto]").forEach((el) => {
