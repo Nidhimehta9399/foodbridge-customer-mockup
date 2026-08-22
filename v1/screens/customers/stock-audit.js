@@ -1938,7 +1938,7 @@
       ${blockers.length ? `<div class="pd-blockers">${blockers.map((b) => `<div>${esc(b)}</div>`).join("")}</div>` : ""}
     `, { foot: `<div class="sah-foot"><div class="inner">
         <button class="btn-wide ghost" id="pdSkip">Skip</button>
-        <button class="btn-wide primary" id="pdSave" ${blockers.length ? "disabled" : ""}>Save &amp; Next</button>
+        <button class="btn-wide primary" id="pdSave" ${blockers.length ? "disabled" : ""}>Save</button>
       </div></div>` });
 
     wireProduct(customer, p, line, hasShelf);
@@ -2191,7 +2191,8 @@
       if (!cb.expired) line.disposition = null;
       if (!cb.damaged) line.damageType = null;
       const parts = CONDITION_KEYS.filter((c) => cb[c.k] > 0).map((c) => `${cb[c.k]} ${c.label.toLowerCase()}`);
-      toast(`${p.name}: ${line.physical} found${parts.length ? " — " + parts.join(", ") : ""}.`);
+      const done = !nextUncaptured(lastCompleted(customer._id));
+      toast(`${p.name}: ${line.physical} found${parts.length ? " — " + parts.join(", ") : ""}.${done ? " That's everything — ready to review." : ""}`);
       advance(customer, p, false);
     };
   }
@@ -2237,14 +2238,17 @@
     }));
   }
 
-  // Straight on to the next thing that still needs checking — the rep should
-  // not have to return to the list after every single product.
+  // Back to the list after every product, rather than jumping the rep to
+  // whatever the system thinks is next. The list is where they can search,
+  // scan, and see what's left — deciding for them which product to stand in
+  // front of next takes that away.
+  //
+  // Replaces rather than pushes: product was reached FROM the list, so
+  // returning to it should unwind that step, not stack another one.
   function advance(customer, p, skipped) {
     if (skipped) delete DRAFT.lines[p.id];
     persistDraft();
-    const next = nextUncaptured(lastCompleted(customer._id), p.id);
-    if (next) go("product", { customerId: customer._id, productId: next.id }, true);
-    else { toast("That's everything — ready to review."); go("workspace", { customerId: customer._id }, true); }
+    go("workspace", { customerId: customer._id }, true);
   }
 
   /* ================================================================= VIEW: review */
