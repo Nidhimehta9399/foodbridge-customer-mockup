@@ -743,6 +743,7 @@
       "create-details": renderCreateDetails,
       brief: renderBrief,
       workspace: renderWorkspace,
+      product: renderProduct,
       complete: renderComplete,
     })[CURRENT.view]?.();
   }
@@ -1417,163 +1418,320 @@
 
   /* ================================================================= VIEW: workspace (capture) */
 
-  let WS_STATE = { q: "" };
+  let WS_STATE = { q: "", tab: "all" };
 
-  function capCardHTML(p) {
+  // The rep is standing in the store. The list has to answer "what should I
+  // check?" without making them read a catalogue, so it's ordered by what
+  // matters rather than alphabetically: anything flagged on the last visit
+  // first — that's the previous-finding → verification → resolution loop —
+  // then whatever this location is actually meant to stock, then the rest.
+  function productPriority(p, lastAudit) {
+    const prev = lastAudit && lastAudit.lines.find((l) => l.productId === p.id);
+    if (prev && dominantCondition(prev) !== "ok") return 0;
+    if (prev && lineVariance(prev) !== 0) return 1;
+    if (p.systemStock > 0) return 2;
+    return 3;
+  }
+
+  // What the rep still has to verify, and why. Two sources: what the last
+  // visit flagged (carried forward so it gets checked again) and what THIS
+  // visit has already turned up.
+  function wsAttentionFor(p, lastAudit) {
     const line = DRAFT.lines[p.id];
-    const counted = line ? line.counted : "";
-    const condition = (line && line.condition) || "ok";
-    const shelfAvailable = line ? line.shelfAvailable !== false : true;
-    const touched = line != null;
-    const v = counted === "" || counted == null ? null : Number(counted) - p.systemStock;
-    const vCls = v == null ? "" : v === 0 ? "match" : v > 0 ? "up" : "down";
-    const vTxt = v == null ? "—" : v === 0 ? "Match" : (v > 0 ? "+" : "") + v;
-    return `
-      <div class="cap-card ${touched ? "touched" : ""}" data-p="${p.id}">
-        <div class="head">
-          <span class="thumb">${p.emoji || "📦"}</span>
-          <div><div class="pn">${esc(p.name)}</div><div class="art">Art No: ${esc(p.artNo)} · ${esc(p.category)}</div></div>
-          <div class="sys">System<b>${p.systemStock} ${esc(p.unit)}</b></div>
-        </div>
-        <div class="cap-stepper">
-          <button type="button" data-step="-1">−</button>
-          <input type="text" inputmode="numeric" placeholder="0" value="${counted === "" || counted == null ? "" : counted}">
-          <button type="button" data-step="1">+</button>
-          <span class="var ${vCls}">${vTxt}</span>
-        </div>
-        <div class="cond-row">
-          ${CONDITIONS.map((c) => `<button type="button" class="cond-chip ${condition === c.k ? "on " + c.k : ""}" data-cond="${c.k}">${esc(c.label)}</button>`).join("")}
-        </div>
-        <div class="shelf-row">
-          <span class="lbl">Available on shelf</span>
-          <button type="button" class="switch ${shelfAvailable ? "on" : ""}" data-shelf></button>
-        </div>
-      </div>`;
+    if (line && lineIsCaptured(line)) {
+      if (line.status === "not_found") return { cls: "warn", label: "Not found" };
+      const dc = dominantCondition(line);
+      if (dc !== "ok") return { cls: dc === "out_of_stock" ? "danger" : "warn", label: condMeta(dc).label };
+      // Condition can be perfect and the line still be a problem: two units
+      // of an expected thirty is a stock-out coming, and the rep should see
+      // that from the list rather than having to do the arithmetic.
+      if (isStockOutRisk(line)) return { cls: "danger", label: "Stock-out risk" };
+      if (isOverstock(line)) return { cls: "neutral", label: "Overstock" };
+      // A plain variance is not an exception — it's already on the row as a
+      // signed number. Flagging every one of them would flag nearly
+      // everything and make the Attention list worth ignoring.
+      return null;
+    }
+    const prev = lastAudit && lastAudit.lines.find((l) => l.productId === p.id);
+    if (prev && dominantCondition(prev) !== "ok") return { cls: "warn", label: "Flagged last visit" };
+    if (prev && lineVariance(prev) !== 0) return { cls: "neutral", label: "Variance last visit" };
+    return null;
+  }
+
+  function wsProgress() {
+    const captured = products.filter((p) => DRAFT.lines[p.id] && lineIsCaptured(DRAFT.lines[p.id])).length;
+    return { captured, total: products.length, pct: products.length ? Math.round((captured / products.length) * 100) : 0 };
   }
 
   function renderWorkspace() {
     const customer = loadCustomer(CURRENT.params.customerId);
     if (!customer || !DRAFT) { go("customers", {}, true); return; }
+    if (!DRAFT.startedAt) DRAFT.startedAt = new Date().toISOString();
+
+    const lastAudit = auditsFor(customer._id)[0] || null;
     const q = WS_STATE.q.trim().toLowerCase();
-    const list = products.filter((p) => !q || p.name.toLowerCase().includes(q) || String(p.artNo).toLowerCase().includes(q));
-    const entered = Object.keys(DRAFT.lines).filter((id) => DRAFT.lines[id].counted !== "" && DRAFT.lines[id].counted != null).length;
-    const pct = products.length ? Math.round((entered / products.length) * 100) : 0;
+    const matches = (p) => !q || p.name.toLowerCase().includes(q) || String(p.artNo).toLowerCase().includes(q) || (p.category || "").toLowerCase().includes(q);
+
+    const ordered = products
+      .slice()
+      .sort((a, b) => productPriority(a, lastAudit) - productPriority(b, lastAudit) || a.name.localeCompare(b.name));
+    const attention = ordered.filter((p) => wsAttentionFor(p, lastAudit));
+    const shown = (WS_STATE.tab === "attention" ? attention : ordered).filter(matches);
+
+    const prog = wsProgress();
+    const place = placeLine(customer, DRAFT.locationId);
 
     frame(`
-      <div class="sah-hero">
-        <button type="button" class="back" id="wsBack">← ${esc(titleCase(nameOf(customer)))}</button>
-        <div class="row"><div><p class="eyebrow">Audit Workspace · ${esc(placeLine(customer, DRAFT.locationId))}</p><h1>Count What's On The Shelf</h1><p class="sub">${esc(purposeMeta(DRAFT.purpose).label)}</p></div></div>
+      <div class="ws-head">
+        <button type="button" class="ws-exit" id="wsExit">← Exit Audit</button>
+        <div class="ws-where">${esc(place)}</div>
+        <div class="ws-progress">
+          <span class="n">${prog.captured} / ${prog.total} products</span>
+          ${attention.length ? `<span class="attn">${attention.length} need attention</span>` : `<span class="clear">Nothing flagged yet</span>`}
+        </div>
+        <div class="ws-bar"><span style="width:${prog.pct}%"></span></div>
       </div>
-      <div class="cap-progress"><span class="txt">${entered} / ${products.length} captured</span><div class="bar"><span style="width:${pct}%"></span></div></div>
+
       <div class="sah-search-row">
-        <div class="sah-search"><input type="search" id="wsQ" value="${esc(WS_STATE.q)}" placeholder="Search or scan a product…"></div>
+        <div class="sah-search"><input type="search" id="wsQ" value="${esc(WS_STATE.q)}" placeholder="Search name, SKU or barcode…"></div>
         <button type="button" class="scan-btn" id="wsScan">📷 Scan</button>
       </div>
-      <div class="cap-grid" id="capGrid">${list.length ? list.map(capCardHTML).join("") : `<div class="sah-empty">No products found</div>`}</div>
-      <textarea class="workspace-notes" id="wsNotes" placeholder="Notes for this visit (optional)">${esc(DRAFT.notes)}</textarea>
-    `, { foot: `<div class="sah-foot"><div class="inner">
-        <button class="btn-wide ghost" id="wsCancel">Cancel</button>
-        <button class="btn-wide primary" id="wsComplete" ${entered ? "" : "disabled"}>Complete Audit</button>
+
+      ${q ? "" : `<div class="chips">
+        <button class="chip ${WS_STATE.tab === "all" ? "on" : ""}" data-wt="all">All Products (${ordered.length})</button>
+        <button class="chip ${WS_STATE.tab === "attention" ? "on" : ""}" data-wt="attention">Needs Attention (${attention.length})</button>
+      </div>`}
+
+      ${shown.length
+        ? `<div class="ws-list">${shown.map((p) => wsRowHTML(p, lastAudit)).join("")}</div>`
+        : `<div class="sah-empty"><div class="big">${q ? "🔍" : "✅"}</div><p>${q ? "No product matches that." : "Nothing needs attention here."}</p></div>`}
+    `, { foot: `<div class="sah-foot ws-foot"><div class="inner">
+        <button type="button" class="foot-stat" data-wt="all"><b>${prog.captured}/${prog.total}</b><span>Products</span></button>
+        <button type="button" class="foot-stat ${attention.length ? "flag" : ""}" data-wt="attention"><b>${attention.length}</b><span>Attention</span></button>
+        <button type="button" class="btn-wide primary" id="wsReview" ${prog.captured ? "" : "disabled"}>Review</button>
       </div></div>` });
 
-    wireWorkspace(customer, list);
+    wireWorkspace(customer, lastAudit);
   }
 
-  function wireWorkspace(customer, list) {
-    $("#wsBack", PAGE).onclick = back;
-    $("#wsCancel", PAGE).onclick = () => go("customer-detail", { customerId: customer._id }, true);
-    $("#wsNotes", PAGE).oninput = (e) => (DRAFT.notes = e.target.value);
-    wireSearchInput("wsQ", (v) => { WS_STATE.q = v; renderWorkspace(); });
+  function wsRowHTML(p, lastAudit) {
+    const line = DRAFT.lines[p.id];
+    const done = line && lineIsCaptured(line);
+    const attn = wsAttentionFor(p, lastAudit);
+    const v = done && line.status === "audited" ? lineVariance(line) : null;
+    const vCls = v == null ? "" : v === 0 ? "match" : v > 0 ? "up" : "down";
+    const vTxt = v == null ? "" : v === 0 ? "Match" : (v > 0 ? "+" : "") + v;
+    // A <div>, not a <button>: it hosts a real <button> and nesting
+    // interactive controls inside a <button> is invalid HTML.
+    return `
+      <div class="ws-row ${done ? "done" : ""}" data-product="${esc(p.id)}">
+        <span class="thumb">${p.emoji || "📦"}</span>
+        <span class="info">
+          <span class="nm">${esc(p.name)}</span>
+          <span class="meta">SKU ${esc(p.artNo)} · Expected ${p.systemStock} ${esc(p.unit)}</span>
+          ${attn ? `<span class="status-tag ${attn.cls}">${esc(attn.label)}</span>` : ""}
+        </span>
+        <span class="side">
+          ${done
+            ? `<span class="found">${line.status === "not_found" ? "Not found" : `${linePhysical(line)} found`}</span>
+               ${vTxt ? `<span class="var ${vCls}">${vTxt}</span>` : ""}
+               <span class="tick">✓</span>`
+            : `<button type="button" class="btn-count" data-count="${esc(p.id)}">Count</button>`}
+        </span>
+      </div>`;
+  }
 
+  function wireWorkspace(customer, lastAudit) {
+    wireSearchInput("wsQ", (v) => { WS_STATE.q = v; renderWorkspace(); });
+    PAGE.querySelectorAll("[data-wt]").forEach((b) => (b.onclick = () => { WS_STATE.tab = b.dataset.wt; WS_STATE.q = ""; renderWorkspace(); }));
+    PAGE.querySelectorAll("[data-product]").forEach((el) => (el.onclick = () => go("product", { customerId: customer._id, productId: el.dataset.product })));
+    PAGE.querySelectorAll("[data-count]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); go("product", { customerId: customer._id, productId: b.dataset.count }); }));
+
+    // Simulated — there's no camera here. It resolves to the next product
+    // the rep still has to check, which is what a real scan would land on
+    // most of the time anyway.
     $("#wsScan", PAGE).onclick = () => {
-      const next = products.find((p) => !DRAFT.lines[p.id] || DRAFT.lines[p.id].counted === "" || DRAFT.lines[p.id].counted == null);
-      if (!next) { toast("All products already counted.", "info"); return; }
-      const line = ensureLine(next.id);
-      line.counted = String((line.counted === "" || line.counted == null ? 0 : Number(line.counted)) + 1);
+      const next = nextUncaptured(lastAudit);
+      if (!next) { toast("Every product has been counted.", "info"); return; }
       toast(`Scanned ${next.name}.`);
-      renderWorkspace();
+      go("product", { customerId: customer._id, productId: next.id });
     };
 
-    function ensureLine(id) {
-      if (!DRAFT.lines[id]) DRAFT.lines[id] = { counted: "", condition: "ok", shelfAvailable: true };
-      return DRAFT.lines[id];
-    }
-    function updateProgress() {
-      const entered = Object.keys(DRAFT.lines).filter((id) => DRAFT.lines[id].counted !== "" && DRAFT.lines[id].counted != null).length;
-      const pct = products.length ? Math.round((entered / products.length) * 100) : 0;
-      const txt = $(".cap-progress .txt", PAGE);
-      if (txt) txt.textContent = `${entered} / ${products.length} captured`;
-      const bar = $(".cap-progress .bar > span", PAGE);
-      if (bar) bar.style.width = pct + "%";
-      const btn = $("#wsComplete", PAGE);
-      if (btn) btn.disabled = entered === 0;
-    }
-    function syncCard(p) {
-      const card = PAGE.querySelector(`.cap-card[data-p="${p.id}"]`);
-      if (!card) return;
-      const line = DRAFT.lines[p.id];
-      card.classList.toggle("touched", line != null);
-      const counted = line ? line.counted : "";
-      const v = counted === "" || counted == null ? null : Number(counted) - p.systemStock;
-      const varEl = card.querySelector(".var");
-      varEl.className = "var" + (v == null ? "" : v === 0 ? " match" : v > 0 ? " up" : " down");
-      varEl.textContent = v == null ? "—" : v === 0 ? "Match" : (v > 0 ? "+" : "") + v;
-      const input = card.querySelector(".cap-stepper input");
-      const shown = counted === "" || counted == null ? "" : String(counted);
-      if (input.value !== shown) input.value = shown;
-      card.querySelectorAll(".cond-chip").forEach((chip) => {
-        const on = !!line && line.condition === chip.dataset.cond;
-        chip.className = "cond-chip" + (on ? " on " + chip.dataset.cond : "");
-      });
-      card.querySelector(".switch").classList.toggle("on", line ? line.shelfAvailable !== false : true);
-    }
-
-    list.forEach((p) => {
-      const card = PAGE.querySelector(`.cap-card[data-p="${p.id}"]`);
-      if (!card) return;
-      const input = card.querySelector(".cap-stepper input");
-      const setCounted = (val) => {
-        const line = ensureLine(p.id);
-        line.counted = val === "" ? "" : String(Math.max(0, Number(val) || 0));
-        syncCard(p);
-        updateProgress();
-      };
-      input.oninput = () => setCounted(input.value);
-      card.querySelectorAll("[data-step]").forEach((b) => (b.onclick = () => {
-        const line = ensureLine(p.id);
-        const cur = line.counted === "" || line.counted == null ? 0 : Number(line.counted);
-        setCounted(String(Math.max(0, cur + Number(b.dataset.step))));
-      }));
-      card.querySelectorAll("[data-cond]").forEach((chip) => (chip.onclick = () => { ensureLine(p.id).condition = chip.dataset.cond; syncCard(p); }));
-      card.querySelector("[data-shelf]").onclick = () => {
-        const line = ensureLine(p.id);
-        line.shelfAvailable = !(line.shelfAvailable !== false);
-        syncCard(p);
-      };
-    });
-
-    $("#wsComplete", PAGE).onclick = () => completeAudit(customer);
+    $("#wsExit", PAGE).onclick = () => exitAuditSheet(customer);
+    $("#wsReview", PAGE).onclick = () => completeAudit(customer);
   }
 
+  function nextUncaptured(lastAudit, afterId) {
+    const ordered = products
+      .slice()
+      .sort((a, b) => productPriority(a, lastAudit) - productPriority(b, lastAudit) || a.name.localeCompare(b.name));
+    const pending = ordered.filter((p) => !(DRAFT.lines[p.id] && lineIsCaptured(DRAFT.lines[p.id])));
+    if (!afterId) return pending[0] || null;
+    // Keep walking forwards from where the rep just was, rather than
+    // bouncing back to the top of the list after every save.
+    const from = ordered.findIndex((p) => p.id === afterId);
+    return pending.find((p) => ordered.indexOf(p) > from) || pending[0] || null;
+  }
+
+  function exitAuditSheet(customer) {
+    const prog = wsProgress();
+    sheet({
+      eyebrow: placeLine(customer, DRAFT.locationId),
+      title: "Leave this audit?",
+      sub: `${prog.captured} of ${prog.total} products counted so far.`,
+      actions: [
+        { label: "Keep counting", cls: "ghost" },
+        { label: "Discard this audit", cls: "danger", onClick: () => { DRAFT = null; toast("Audit discarded."); go("customer-detail", { customerId: customer._id }, true); } },
+      ],
+    });
+  }
+
+  /* ================================================================= VIEW: product (one product's observation) */
+
+  // The most important interaction in the feature. Optimised for
+  // count → condition → next, with everything else out of the way until an
+  // exception makes it relevant.
+  function renderProduct() {
+    const customer = loadCustomer(CURRENT.params.customerId);
+    const p = productById(CURRENT.params.productId);
+    if (!customer || !DRAFT || !p) { go("customers", {}, true); return; }
+
+    const line = ensureDraftLine(p);
+    const total = line.physical == null ? "" : line.physical;
+    const cb = line.conditionBreakdown;
+    const counted = sumOf(cb);
+    const totalNum = total === "" ? 0 : Number(total);
+    const diff = totalNum - counted;
+    const reconciled = total !== "" && diff === 0;
+    const v = total === "" ? null : totalNum - p.systemStock;
+
+    frame(`
+      <div class="pd-head">
+        <button type="button" class="ws-exit" id="pdBack">← ${esc(placeLine(customer, DRAFT.locationId))}</button>
+        <div class="pd-title"><span class="thumb">${p.emoji || "📦"}</span>
+          <div><h1>${esc(p.name)}</h1><p>SKU ${esc(p.artNo)} · ${esc(p.category)}</p></div>
+        </div>
+        <div class="pd-expected">
+          <span>Expected stock</span>
+          <b>${p.systemStock} ${esc(p.unit)}</b>
+          ${v == null ? "" : `<span class="var ${v === 0 ? "match" : v > 0 ? "up" : "down"}">${v === 0 ? "Match" : (v > 0 ? "+" : "") + v}</span>`}
+        </div>
+      </div>
+
+      <div class="sec-label">Physical stock</div>
+      <div class="pd-total">
+        <span class="lbl">Total found</span>
+        ${stepperHTML("total", total, "big")}
+      </div>
+
+      <div class="sec-label">Stock condition</div>
+      <div class="pd-conditions">
+        ${CONDITION_KEYS.map((c) => `
+          <div class="pd-cond ${c.k}">
+            <span class="lbl">${c.icon} ${esc(c.label)}</span>
+            ${stepperHTML(c.k, cb[c.k] || 0)}
+          </div>`).join("")}
+      </div>
+
+      <div class="pd-reconcile ${total === "" ? "" : reconciled ? "ok" : "bad"}">
+        ${total === ""
+          ? `<span>Enter the total found, then split it by condition.</span>`
+          : reconciled
+            ? `<span><b>${counted}</b> accounted for — matches the total. ✓</span>`
+            : `<span><b>${counted}</b> of <b>${totalNum}</b> accounted for — ${diff > 0 ? `${diff} still to classify` : `${-diff} more than the total`}.</span>
+               <button type="button" id="pdBalance">${diff > 0 ? "Rest is good stock" : "Set total to " + counted}</button>`}
+      </div>
+    `, { foot: `<div class="sah-foot"><div class="inner">
+        <button class="btn-wide ghost" id="pdSkip">Skip</button>
+        <button class="btn-wide primary" id="pdSave" ${reconciled ? "" : "disabled"}>Save &amp; Next</button>
+      </div></div>` });
+
+    wireProduct(customer, p, line);
+  }
+
+  function stepperHTML(key, value, cls) {
+    return `<span class="pd-stepper ${cls || ""}" data-field="${esc(key)}">
+      <button type="button" data-delta="-1">−</button>
+      <input type="text" inputmode="numeric" size="3" value="${value === "" || value == null ? "" : value}" placeholder="0">
+      <button type="button" data-delta="1">+</button>
+    </span>`;
+  }
+
+  function ensureDraftLine(p) {
+    if (!DRAFT.lines[p.id]) DRAFT.lines[p.id] = blankLine(p.id, p.systemStock);
+    return DRAFT.lines[p.id];
+  }
+
+  function wireProduct(customer, p, line) {
+    const cb = line.conditionBreakdown;
+    const num = (v) => Math.max(0, Number(v) || 0);
+
+    const readField = (key) => (key === "total" ? (line.physical == null ? 0 : line.physical) : cb[key] || 0);
+    // Good stock is the remainder, and stays that way on its own. Count the
+    // total, then declare only the exceptions — finding 2 expired out of 12
+    // means 10 are good, not that 2 more appeared. That keeps the normal
+    // product at two taps and the reconciliation true by construction.
+    //
+    // Good is still directly editable, for a rep who counted the piles
+    // separately rather than counting a total first. Doing that is the one
+    // way the numbers can disagree, and the strip below says so.
+    const others = () => (cb.nearExpiry || 0) + (cb.expired || 0) + (cb.damaged || 0);
+    const writeField = (key, val) => {
+      if (key === "total") {
+        line.physical = val;
+        cb.good = Math.max(0, val - others());
+      } else if (key === "good") {
+        cb.good = val;
+      } else {
+        cb[key] = val;
+        if (line.physical != null) cb.good = Math.max(0, line.physical - others());
+      }
+      renderProduct();
+    };
+
+    PAGE.querySelectorAll(".pd-stepper").forEach((st) => {
+      const key = st.dataset.field;
+      const input = st.querySelector("input");
+      input.oninput = () => writeField(key, num(input.value));
+      st.querySelectorAll("[data-delta]").forEach((b) => (b.onclick = () => writeField(key, num(readField(key) + Number(b.dataset.delta)))));
+    });
+
+    const balance = $("#pdBalance", PAGE);
+    if (balance) balance.onclick = () => {
+      const diff = (line.physical || 0) - sumOf(cb);
+      if (diff > 0) cb.good = (cb.good || 0) + diff;
+      else line.physical = sumOf(cb);
+      renderProduct();
+    };
+
+    $("#pdBack", PAGE).onclick = back;
+    $("#pdSkip", PAGE).onclick = () => advance(customer, p, true);
+    $("#pdSave", PAGE).onclick = () => {
+      line.status = "audited";
+      const parts = CONDITION_KEYS.filter((c) => cb[c.k] > 0).map((c) => `${cb[c.k]} ${c.label.toLowerCase()}`);
+      toast(`${p.name}: ${line.physical} found${parts.length ? " — " + parts.join(", ") : ""}.`);
+      advance(customer, p, false);
+    };
+  }
+
+  // Straight on to the next thing that still needs checking — the rep should
+  // not have to return to the list after every single product.
+  function advance(customer, p, skipped) {
+    if (skipped) delete DRAFT.lines[p.id];
+    const next = nextUncaptured(auditsFor(customer._id)[0] || null, p.id);
+    if (next) go("product", { customerId: customer._id, productId: next.id }, true);
+    else { toast("That's everything — ready to review."); go("workspace", { customerId: customer._id }, true); }
+  }
+
+  /* ------------------------------------------------------- complete audit */
+
   function completeAudit(customer) {
+    // The draft already holds observations — the product screen writes them
+    // straight in. Only lines the rep actually reached get recorded; an
+    // untouched product is absent from the audit, not a zero count in it.
     const lines = Object.keys(DRAFT.lines)
-      .filter((id) => DRAFT.lines[id].counted !== "" && DRAFT.lines[id].counted != null)
-      .map((id) => {
-        const p = productById(id);
-        const line = DRAFT.lines[id];
-        // The single-enum capture card is still the stage-1 workspace; fan
-        // its one condition out into the breakdown so the stored record is
-        // already the real shape when the product screen replaces it.
-        const out = blankLine(id, p ? p.systemStock : 0);
-        out.physical = Number(line.counted);
-        out.status = "audited";
-        const bucket = { ok: "good", near_expiry: "nearExpiry", expired: "expired", damaged: "damaged" }[line.condition || "ok"];
-        if (bucket) out.conditionBreakdown[bucket] = out.physical;
-        const onShelf = line.shelfAvailable !== false;
-        out.storageBreakdown[onShelf ? "shelf" : "backroom"] = out.physical;
-        out.shelfAvailability = onShelf ? "available" : "not_on_shelf";
-        return out;
-      });
+      .map((id) => DRAFT.lines[id])
+      .filter(lineIsCaptured);
     if (!lines.length) return;
 
     const stamp = new Date().toISOString();
