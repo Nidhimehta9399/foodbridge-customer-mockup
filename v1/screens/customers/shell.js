@@ -191,6 +191,7 @@
       children: [
         { label: "B2B Customers", screen: "b2b", href: "b2b-customers.html" },
         { label: "Retail Customers", screen: "retail", href: "retail-customers.html" },
+        { label: "Stock Audit & Health", screen: "stock-audit", href: "stock-audit.html" },
       ],
     },
     { label: "Sales Orders", icon: I.ShoppingCart },

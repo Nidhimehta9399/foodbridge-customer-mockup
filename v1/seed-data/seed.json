@@ -1060,43 +1060,476 @@
       }
     ]
   },
-  "stockCounts": {
+  "_stockAuditsNote": "One record per distributor visit, backing the Stock Audit & Health page. Each line is an observation, not a count: `expected` freezes the system stock the visit saw, `conditionBreakdown` splits the physical stock four ways (good/nearExpiry/expired/damaged) and must reconcile to it, `storageBreakdown` records where it was found, and expiryDetails/disposition/damageType/evidence carry the exception detail. Records are terse — normalizeLine() in stock-audit.js fills in omitted buckets and derives `physical` from the condition sum. Line `status` distinguishes audited from not_found (not the same as zero). Audit `status` follows the lifecycle draft → in_progress → paused → review → completed, with cancelled/abandoned as exception states.",
+  "stockAudits": {
     "c01": [
       {
-        "product": "Amul Taaza 500ml",
-        "unit": "Crate",
-        "counted": 12,
-        "countedAt": "2026-08-09"
-      },
+        "id": "aud-c01-1",
+        "at": "2026-08-05T15:41:00",
+        "status": "completed",
+        "auditor": "Mahesh",
+        "purpose": "routine",
+        "locationId": "primary",
+        "expectedProducts": 3,
+        "outcome": "healthy",
+        "notes": "",
+        "lines": [
+          {
+            "productId": "p01",
+            "expected": 2,
+            "status": "audited",
+            "conditionBreakdown": {
+              "good": 2
+            },
+            "storageBreakdown": {
+              "shelf": 2
+            },
+            "shelfAvailability": "available",
+            "facings": 4
+          },
+          {
+            "productId": "p11",
+            "expected": 8,
+            "status": "audited",
+            "conditionBreakdown": {
+              "good": 8
+            },
+            "storageBreakdown": {
+              "shelf": 8
+            },
+            "shelfAvailability": "available",
+            "facings": 6
+          },
+          {
+            "productId": "p12",
+            "expected": 15,
+            "status": "audited",
+            "conditionBreakdown": {
+              "good": 15
+            },
+            "storageBreakdown": {
+              "shelf": 12,
+              "backroom": 3
+            },
+            "shelfAvailability": "available",
+            "facings": 8
+          }
+        ],
+        "followUp": {
+          "required": false,
+          "note": "",
+          "at": ""
+        }
+      }
+    ],
+    "c02": [
       {
-        "product": "Britannia Bread 400g",
-        "unit": "Packet",
-        "counted": 30,
-        "countedAt": "2026-08-09"
+        "id": "aud-c02-1",
+        "at": "2026-08-10T15:41:00",
+        "status": "completed",
+        "auditor": "Mahesh",
+        "purpose": "routine",
+        "locationId": "primary",
+        "expectedProducts": 2,
+        "outcome": "replenish",
+        "notes": "",
+        "lines": [
+          {
+            "productId": "p06",
+            "expected": 2,
+            "status": "audited",
+            "conditionBreakdown": {
+              "good": 1
+            },
+            "storageBreakdown": {
+              "shelf": 1
+            },
+            "shelfAvailability": "partial",
+            "facings": 2
+          },
+          {
+            "productId": "p10",
+            "expected": 30,
+            "status": "audited",
+            "conditionBreakdown": {
+              "good": 28
+            },
+            "storageBreakdown": {
+              "shelf": 20,
+              "backroom": 8
+            },
+            "shelfAvailability": "partial",
+            "facings": 5,
+            "notes": "Front two facings empty at close of day."
+          }
+        ],
+        "followUp": {
+          "required": false,
+          "note": "",
+          "at": ""
+        }
       }
     ],
     "c05": [
       {
-        "product": "Tata Salt 1kg",
-        "unit": "Box",
-        "counted": 8,
-        "countedAt": "2026-08-06"
+        "id": "aud-c05-1",
+        "at": "2026-08-06T11:02:00",
+        "status": "completed",
+        "auditor": "Mahesh",
+        "purpose": "routine",
+        "locationId": "primary",
+        "expectedProducts": 3,
+        "outcome": "pull",
+        "notes": "Monthly audit — aisle 3 & 4",
+        "lines": [
+          {
+            "productId": "p11",
+            "expected": 8,
+            "status": "audited",
+            "conditionBreakdown": {
+              "good": 8
+            },
+            "storageBreakdown": {
+              "shelf": 8
+            },
+            "shelfAvailability": "available",
+            "facings": 6
+          },
+          {
+            "productId": "p12",
+            "expected": 15,
+            "status": "audited",
+            "conditionBreakdown": {
+              "good": 11,
+              "nearExpiry": 2
+            },
+            "storageBreakdown": {
+              "shelf": 13
+            },
+            "shelfAvailability": "available",
+            "facings": 7,
+            "expiryDetails": [
+              {
+                "bucket": "nearExpiry",
+                "date": "2026-09-04",
+                "batch": "PG-2609-A",
+                "qty": 2
+              }
+            ],
+            "notes": "Two packs from the June batch still on the top shelf — rotate forward."
+          },
+          {
+            "productId": "p09",
+            "expected": 12,
+            "status": "audited",
+            "conditionBreakdown": {
+              "good": 26
+            },
+            "storageBreakdown": {
+              "shelf": 6,
+              "backroom": 20
+            },
+            "shelfAvailability": "available",
+            "facings": 3,
+            "notes": "Customer over-ordered last cycle; backroom is full."
+          }
+        ],
+        "followUp": {
+          "required": false,
+          "note": "",
+          "at": ""
+        }
       }
     ],
     "c11": [
       {
-        "product": "Parle-G 800g",
-        "unit": "Box",
-        "counted": 15,
-        "countedAt": "2026-08-07"
+        "id": "aud-c11-1",
+        "at": "2026-08-07T09:20:00",
+        "status": "completed",
+        "auditor": "Mahesh",
+        "purpose": "routine",
+        "locationId": "primary",
+        "expectedProducts": 2,
+        "outcome": "replenish",
+        "notes": "Opening count",
+        "lines": [
+          {
+            "productId": "p12",
+            "expected": 15,
+            "status": "audited",
+            "conditionBreakdown": {
+              "good": 15
+            },
+            "storageBreakdown": {
+              "shelf": 15
+            },
+            "shelfAvailability": "available",
+            "facings": 8
+          },
+          {
+            "productId": "p01",
+            "expected": 2,
+            "status": "audited",
+            "conditionBreakdown": {},
+            "storageBreakdown": {},
+            "shelfAvailability": "not_on_shelf",
+            "notes": "Shelf tag still up, nothing behind it.",
+            "evidence": [
+              {
+                "id": "ev-c11-1-a",
+                "type": "shelf",
+                "label": "Empty facing, aisle 2",
+                "note": "",
+                "capturedAt": "2026-08-07T09:22:00",
+                "capturedBy": "Mahesh"
+              }
+            ]
+          }
+        ],
+        "followUp": {
+          "required": true,
+          "note": "Restock 250ML PET before next visit — shelf empty.",
+          "at": "2026-08-07T09:25:00"
+        }
       },
       {
-        "product": "Bisleri 1L",
-        "unit": "Crate",
-        "counted": 40,
-        "countedAt": "2026-08-07"
+        "id": "aud-c11-2",
+        "at": "2026-08-18T10:05:00",
+        "status": "completed",
+        "auditor": "Mahesh",
+        "purpose": "followup",
+        "locationId": "primary",
+        "expectedProducts": 8,
+        "outcome": "followup",
+        "notes": "Follow-up visit",
+        "finalNote": "Store closed at 10:40 — remaining aisles not walked.",
+        "partial": {
+          "isPartial": true,
+          "reason": "store_closing",
+          "note": "Shutters came down early for a delivery."
+        },
+        "lines": [
+          {
+            "productId": "p12",
+            "expected": 15,
+            "status": "audited",
+            "conditionBreakdown": {
+              "good": 10
+            },
+            "storageBreakdown": {
+              "shelf": 10
+            },
+            "shelfAvailability": "available",
+            "facings": 6
+          },
+          {
+            "productId": "p01",
+            "expected": 2,
+            "status": "audited",
+            "conditionBreakdown": {
+              "nearExpiry": 1
+            },
+            "storageBreakdown": {
+              "shelf": 1
+            },
+            "shelfAvailability": "partial",
+            "facings": 1,
+            "expiryDetails": [
+              {
+                "bucket": "nearExpiry",
+                "date": "2026-09-01",
+                "batch": "PET-0826",
+                "qty": 1
+              }
+            ],
+            "notes": "Restocked since last visit, but only one unit and it's the old batch."
+          },
+          {
+            "productId": "p04",
+            "expected": 0,
+            "status": "audited",
+            "conditionBreakdown": {
+              "damaged": 3
+            },
+            "storageBreakdown": {
+              "backroom": 3
+            },
+            "shelfAvailability": "not_on_shelf",
+            "damageType": "leakage",
+            "notes": "Three bottles leaking in the backroom crate — store manager already set them aside.",
+            "evidence": [
+              {
+                "id": "ev-c11-2-a",
+                "type": "damage",
+                "label": "Leaking crate, backroom",
+                "note": "Reported by store manager",
+                "capturedAt": "2026-08-18T10:18:00",
+                "capturedBy": "Mahesh"
+              }
+            ]
+          },
+          {
+            "productId": "p09",
+            "expected": 12,
+            "status": "audited",
+            "conditionBreakdown": {
+              "good": 4,
+              "expired": 2
+            },
+            "storageBreakdown": {
+              "shelf": 2,
+              "backroom": 4
+            },
+            "shelfAvailability": "partial",
+            "facings": 2,
+            "expiryDetails": [
+              {
+                "bucket": "expired",
+                "date": "2026-08-14",
+                "batch": "AT-0814",
+                "qty": 2
+              }
+            ],
+            "disposition": "pull",
+            "evidence": [
+              {
+                "id": "ev-c11-2-b",
+                "type": "expiry",
+                "label": "Expired date code, 14 Aug",
+                "note": "",
+                "capturedAt": "2026-08-18T10:26:00",
+                "capturedBy": "Mahesh"
+              }
+            ]
+          },
+          {
+            "productId": "p10",
+            "expected": 30,
+            "status": "not_found",
+            "notFoundReason": "no_access",
+            "notes": "Pallet blocked by the delivery being unloaded."
+          }
+        ],
+        "followUp": {
+          "required": false,
+          "note": "",
+          "at": ""
+        }
       }
     ]
+  },
+  "_orderingSignalsNote": "Synthesized reorder-behaviour signal standing in for the real one, which lives in the Sales Orders module. `orders` is newest-first; last order, order value, average order value and the observed cycle are derived from it at render time. `avgCycleDays` is the expected cadence: orders[0].at + avgCycleDays vs today decides On Track / Slipping / Overdue, feeds the expected-next-order line on the Visit Brief and customer page, and forms the Ordering axis of customer health.",
+  "orderingSignals": {
+    "c01": {
+      "avgCycleDays": 7,
+      "orders": [
+        {
+          "at": "2026-08-19",
+          "value": 48200
+        },
+        {
+          "at": "2026-08-12",
+          "value": 44100
+        },
+        {
+          "at": "2026-08-05",
+          "value": 51600
+        },
+        {
+          "at": "2026-07-29",
+          "value": 46800
+        }
+      ]
+    },
+    "c02": {
+      "avgCycleDays": 10,
+      "orders": [
+        {
+          "at": "2026-08-03",
+          "value": 12400
+        },
+        {
+          "at": "2026-07-24",
+          "value": 15900
+        },
+        {
+          "at": "2026-07-13",
+          "value": 11200
+        }
+      ]
+    },
+    "c03": {
+      "avgCycleDays": 14,
+      "orders": [
+        {
+          "at": "2026-07-20",
+          "value": 31500
+        },
+        {
+          "at": "2026-07-06",
+          "value": 29800
+        },
+        {
+          "at": "2026-06-21",
+          "value": 33400
+        }
+      ]
+    },
+    "c04": {
+      "avgCycleDays": 7,
+      "orders": [
+        {
+          "at": "2026-08-17",
+          "value": 27800
+        },
+        {
+          "at": "2026-08-10",
+          "value": 26400
+        },
+        {
+          "at": "2026-08-03",
+          "value": 29100
+        }
+      ]
+    },
+    "c05": {
+      "avgCycleDays": 14,
+      "orders": [
+        {
+          "at": "2026-08-15",
+          "value": 96300
+        },
+        {
+          "at": "2026-08-01",
+          "value": 88700
+        },
+        {
+          "at": "2026-07-18",
+          "value": 91500
+        }
+      ]
+    },
+    "c11": {
+      "avgCycleDays": 5,
+      "orders": [
+        {
+          "at": "2026-08-20",
+          "value": 18900
+        },
+        {
+          "at": "2026-08-15",
+          "value": 17600
+        },
+        {
+          "at": "2026-08-10",
+          "value": 19400
+        },
+        {
+          "at": "2026-08-05",
+          "value": 16800
+        }
+      ]
+    }
   },
   "offers": {
     "c01": [
@@ -1137,7 +1570,8 @@
       "category": "SQUARE BOTTLE",
       "unit": "Bottle",
       "systemStock": 2,
-      "emoji": "🧴"
+      "emoji": "🧴",
+      "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Plastic%20bottle.jpg?width=200"
     },
     {
       "id": "p02",
@@ -1146,7 +1580,8 @@
       "category": "SQUARE BOTTLE",
       "unit": "Bottle",
       "systemStock": 1,
-      "emoji": "🧴"
+      "emoji": "🧴",
+      "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Plastic%20bottle.jpg?width=200"
     },
     {
       "id": "p03",
@@ -1155,7 +1590,8 @@
       "category": "SQUARE BOTTLE",
       "unit": "Bottle",
       "systemStock": 1,
-      "emoji": "🍶"
+      "emoji": "🍶",
+      "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Plastic%20bottle.jpg?width=200"
     },
     {
       "id": "p04",
@@ -1164,7 +1600,8 @@
       "category": "ROUND BOTTLE",
       "unit": "Bottle",
       "systemStock": 0,
-      "emoji": "💧"
+      "emoji": "💧",
+      "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Plastic%20Water%20Bottle.jpg?width=200"
     },
     {
       "id": "p05",
@@ -1173,7 +1610,8 @@
       "category": "ROUND BOTTLE",
       "unit": "Bottle",
       "systemStock": 0,
-      "emoji": "🥤"
+      "emoji": "🥤",
+      "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Coca-cola%20bottle.jpg?width=200"
     },
     {
       "id": "p06",
@@ -1182,7 +1620,8 @@
       "category": "BREAD",
       "unit": "Pc",
       "systemStock": 2,
-      "emoji": "🥖"
+      "emoji": "🥖",
+      "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Fresh%20made%20bread%2006.jpg?width=200"
     },
     {
       "id": "p07",
@@ -1191,7 +1630,8 @@
       "category": "BREAD",
       "unit": "Pc",
       "systemStock": 1,
-      "emoji": "🍞"
+      "emoji": "🍞",
+      "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Fresh%20made%20bread%2006.jpg?width=200"
     },
     {
       "id": "p08",
@@ -1200,7 +1640,8 @@
       "category": "BREAD",
       "unit": "Pc",
       "systemStock": 3,
-      "emoji": "🍞"
+      "emoji": "🍞",
+      "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Fresh%20made%20bread%2006.jpg?width=200"
     },
     {
       "id": "p09",
@@ -1209,7 +1650,8 @@
       "category": "DAIRY",
       "unit": "Crate",
       "systemStock": 12,
-      "emoji": "🥛"
+      "emoji": "🥛",
+      "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Dairy%20Crest%20Semi%20Skimmed%20Milk%20Bottle.jpg?width=200"
     },
     {
       "id": "p10",
@@ -1218,7 +1660,8 @@
       "category": "BREAD",
       "unit": "Packet",
       "systemStock": 30,
-      "emoji": "🍞"
+      "emoji": "🍞",
+      "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Fresh%20made%20bread%2006.jpg?width=200"
     },
     {
       "id": "p11",
@@ -1227,7 +1670,8 @@
       "category": "GROCERY",
       "unit": "Box",
       "systemStock": 8,
-      "emoji": "🧂"
+      "emoji": "🧂",
+      "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Coles%20Smartbuy%20Salt.jpg?width=200"
     },
     {
       "id": "p12",
@@ -1236,7 +1680,8 @@
       "category": "BISCUITS",
       "unit": "Box",
       "systemStock": 15,
-      "emoji": "🍪"
+      "emoji": "🍪",
+      "image": "https://commons.wikimedia.org/wiki/Special:FilePath/Biscuit%20white%20background.jpg?width=200"
     }
   ]
 }

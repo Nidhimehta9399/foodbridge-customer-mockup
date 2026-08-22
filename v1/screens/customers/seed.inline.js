@@ -200,56 +200,210 @@
     { id: "r12", name: "Ravi Verma", phone: "9312778866", supplyChainType: "PRIVATE", type: TYPE.default, createdAt: "2026-08-08" },
   ].map(customer);
 
-  /* ---- Per-customer stock counts, backing the Stock drawer -------------- */
-  const stockCounts = {
+  /* ---- Stock audits, backing Stock Audit & Health -----------------------
+     Each line is an OBSERVATION rather than a count: what was expected, what
+     was physically found, how that stock breaks down by condition and by
+     where it was stored, plus the exception detail the condition made
+     relevant. Records here are deliberately terse — normalizeLine() in
+     stock-audit.js fills in every bucket the seed leaves out, and derives
+     `physical` as the sum of the condition breakdown, so the reconciliation
+     rule can't be violated by a typo in this file.
+
+     Between them these four customers exercise the whole model: a clean
+     visit, a plain variance, near-expiry with batch detail, a confirmed
+     stock-out, damage with evidence, expired stock with a disposition, a
+     "not found" line (which is NOT the same as zero), backroom stock behind
+     a thin shelf, and a partially-completed visit.
+
+     `lines` are keyed by productId only — name/artNo/category/unit/emoji are
+     looked up from `products` at render time, so they can't drift — while
+     `expected` is the system stock the visit itself saw, frozen at capture.
+     Dates are picked so the landing page shows real variety across
+     "Recently Audited" / "Due for Visit" / "Overdue" (see orderingSignals
+     below): c01 is a healthy customer simply due for a routine check-in;
+     c11 was visited recently but still has open issues. */
+  const stockAudits = {
+    // Healthy store, nothing to do. Scenario A.
     c01: [
-      { product: "Amul Taaza 500ml", unit: "Crate", counted: 12, countedAt: "2026-08-09" },
-      { product: "Britannia Bread 400g", unit: "Packet", counted: 30, countedAt: "2026-08-09" },
+      {
+        id: "aud-c01-1",
+        at: "2026-08-05T15:41:00",
+        status: "completed",
+        auditor: "Mahesh",
+        purpose: "routine",
+        locationId: "primary",
+        expectedProducts: 3,
+        outcome: "healthy",
+        notes: "",
+        lines: [
+          { productId: "p01", expected: 2, status: "audited", conditionBreakdown: { good: 2 }, storageBreakdown: { shelf: 2 }, shelfAvailability: "available", facings: 4 },
+          { productId: "p11", expected: 8, status: "audited", conditionBreakdown: { good: 8 }, storageBreakdown: { shelf: 8 }, shelfAvailability: "available", facings: 6 },
+          { productId: "p12", expected: 15, status: "audited", conditionBreakdown: { good: 15 }, storageBreakdown: { shelf: 12, backroom: 3 }, shelfAvailability: "available", facings: 8 },
+        ],
+        followUp: { required: false, note: "", at: "" },
+      },
     ],
-    c05: [{ product: "Tata Salt 1kg", unit: "Box", counted: 8, countedAt: "2026-08-06" }],
+    // A plain shortfall and a thinning shelf — no exceptions to detail.
+    c02: [
+      {
+        id: "aud-c02-1",
+        at: "2026-08-10T15:41:00",
+        status: "completed",
+        auditor: "Mahesh",
+        purpose: "routine",
+        locationId: "primary",
+        expectedProducts: 2,
+        outcome: "replenish",
+        notes: "",
+        lines: [
+          { productId: "p06", expected: 2, status: "audited", conditionBreakdown: { good: 1 }, storageBreakdown: { shelf: 1 }, shelfAvailability: "partial", facings: 2 },
+          { productId: "p10", expected: 30, status: "audited", conditionBreakdown: { good: 28 }, storageBreakdown: { shelf: 20, backroom: 8 }, shelfAvailability: "partial", facings: 5, notes: "Front two facings empty at close of day." },
+        ],
+        followUp: { required: false, note: "", at: "" },
+      },
+    ],
+    // Near-expiry stock with real batch detail, plus a slow-moving overstock.
+    c05: [
+      {
+        id: "aud-c05-1",
+        at: "2026-08-06T11:02:00",
+        status: "completed",
+        auditor: "Mahesh",
+        purpose: "routine",
+        locationId: "primary",
+        expectedProducts: 3,
+        outcome: "pull",
+        notes: "Monthly audit — aisle 3 & 4",
+        lines: [
+          { productId: "p11", expected: 8, status: "audited", conditionBreakdown: { good: 8 }, storageBreakdown: { shelf: 8 }, shelfAvailability: "available", facings: 6 },
+          {
+            productId: "p12", expected: 15, status: "audited",
+            conditionBreakdown: { good: 11, nearExpiry: 2 },
+            storageBreakdown: { shelf: 13 },
+            shelfAvailability: "available", facings: 7,
+            expiryDetails: [{ bucket: "nearExpiry", date: "2026-09-04", batch: "PG-2609-A", qty: 2 }],
+            notes: "Two packs from the June batch still on the top shelf — rotate forward.",
+          },
+          { productId: "p09", expected: 12, status: "audited", conditionBreakdown: { good: 26 }, storageBreakdown: { shelf: 6, backroom: 20 }, shelfAvailability: "available", facings: 3, notes: "Customer over-ordered last cycle; backroom is full." },
+        ],
+        followUp: { required: false, note: "", at: "" },
+      },
+    ],
+    // The full exception story, across two visits: a stock-out that gets
+    // followed up, then a partial re-visit cut short by the store closing.
     c11: [
-      { product: "Parle-G 800g", unit: "Box", counted: 15, countedAt: "2026-08-07" },
-      { product: "Bisleri 1L", unit: "Crate", counted: 40, countedAt: "2026-08-07" },
+      {
+        id: "aud-c11-1",
+        at: "2026-08-07T09:20:00",
+        status: "completed",
+        auditor: "Mahesh",
+        purpose: "routine",
+        locationId: "primary",
+        expectedProducts: 2,
+        outcome: "replenish",
+        notes: "Opening count",
+        lines: [
+          { productId: "p12", expected: 15, status: "audited", conditionBreakdown: { good: 15 }, storageBreakdown: { shelf: 15 }, shelfAvailability: "available", facings: 8 },
+          {
+            productId: "p01", expected: 2, status: "audited",
+            conditionBreakdown: {},
+            storageBreakdown: {},
+            shelfAvailability: "not_on_shelf",
+            notes: "Shelf tag still up, nothing behind it.",
+            evidence: [{ id: "ev-c11-1-a", type: "shelf", label: "Empty facing, aisle 2", note: "", capturedAt: "2026-08-07T09:22:00", capturedBy: "Mahesh" }],
+          },
+        ],
+        followUp: {
+          required: true,
+          note: "Restock 250ML PET before next visit — shelf empty.",
+          at: "2026-08-07T09:25:00",
+        },
+      },
+      {
+        id: "aud-c11-2",
+        at: "2026-08-18T10:05:00",
+        status: "completed",
+        auditor: "Mahesh",
+        purpose: "followup",
+        locationId: "primary",
+        expectedProducts: 8,
+        outcome: "followup",
+        notes: "Follow-up visit",
+        finalNote: "Store closed at 10:40 — remaining aisles not walked.",
+        partial: { isPartial: true, reason: "store_closing", note: "Shutters came down early for a delivery." },
+        lines: [
+          { productId: "p12", expected: 15, status: "audited", conditionBreakdown: { good: 10 }, storageBreakdown: { shelf: 10 }, shelfAvailability: "available", facings: 6 },
+          {
+            productId: "p01", expected: 2, status: "audited",
+            conditionBreakdown: { nearExpiry: 1 },
+            storageBreakdown: { shelf: 1 },
+            shelfAvailability: "partial", facings: 1,
+            expiryDetails: [{ bucket: "nearExpiry", date: "2026-09-01", batch: "PET-0826", qty: 1 }],
+            notes: "Restocked since last visit, but only one unit and it's the old batch.",
+          },
+          {
+            productId: "p04", expected: 0, status: "audited",
+            conditionBreakdown: { damaged: 3 },
+            storageBreakdown: { backroom: 3 },
+            shelfAvailability: "not_on_shelf",
+            damageType: "leakage",
+            notes: "Three bottles leaking in the backroom crate — store manager already set them aside.",
+            evidence: [{ id: "ev-c11-2-a", type: "damage", label: "Leaking crate, backroom", note: "Reported by store manager", capturedAt: "2026-08-18T10:18:00", capturedBy: "Mahesh" }],
+          },
+          {
+            productId: "p09", expected: 12, status: "audited",
+            conditionBreakdown: { good: 4, expired: 2 },
+            storageBreakdown: { shelf: 2, backroom: 4 },
+            shelfAvailability: "partial", facings: 2,
+            expiryDetails: [{ bucket: "expired", date: "2026-08-14", batch: "AT-0814", qty: 2 }],
+            disposition: "pull",
+            evidence: [{ id: "ev-c11-2-b", type: "expiry", label: "Expired date code, 14 Aug", note: "", capturedAt: "2026-08-18T10:26:00", capturedBy: "Mahesh" }],
+          },
+          // Not found is NOT zero: nobody could confirm the stock either way,
+          // so this line must not be read as a stock-out.
+          { productId: "p10", expected: 30, status: "not_found", notFoundReason: "no_access", notes: "Pallet blocked by the delivery being unloaded." },
+        ],
+        followUp: { required: false, note: "", at: "" },
+      },
     ],
   };
 
-  /* ---- Stock counting SESSIONS, backing the Stock History view ----------
-     One record per count; each expands to its per-product lines. */
-  const stockSessions = {
-    c01: [
-      {
-        at: "10 Aug 2026, 15:41",
-        comment: "",
-        lines: [{ artNo: "34567", product: "250ML PET", system: 2, counted: 2 }],
-      },
-    ],
-    c02: [
-      {
-        at: "10 Aug 2026, 15:41",
-        comment: "",
-        lines: [{ artNo: "a102", product: "Mini Bread 100gm", system: 2, counted: 1 }],
-      },
-    ],
-    c05: [
-      {
-        at: "06 Aug 2026, 11:02",
-        comment: "Monthly audit — aisle 3 & 4",
-        lines: [
-          { artNo: "g301", product: "Tata Salt 1kg", system: 8, counted: 8 },
-          { artNo: "b401", product: "Parle-G 800g", system: 15, counted: 13 },
-        ],
-      },
-    ],
-    c11: [
-      {
-        at: "07 Aug 2026, 09:20",
-        comment: "Opening count",
-        lines: [
-          { artNo: "b401", product: "Parle-G 800g", system: 15, counted: 15 },
-          { artNo: "34567", product: "250ML PET", system: 2, counted: 4 },
-        ],
-      },
-    ],
+  /* ---- Ordering signals, backing Ordering Status and Ordering Pattern ----
+     Distributor-visible reorder behaviour per customer — synthesized for this
+     discovery (the real signal lives in the Sales Orders module, a separate
+     repo not wired into this seed). `orders` is newest-first; last order,
+     order value, average order value and the observed cycle are all derived
+     from it at render time, so there is one place to edit and nothing to
+     keep in sync. `avgCycleDays` is the expected cadence — expected next
+     order (orders[0].at + avgCycleDays) vs. today decides On Track /
+     Slipping / Overdue, and feeds the Ordering axis of customer health.
+     Customers absent here show "Unknown" — that's honest: it means the
+     platform has no ordering signal for them yet, not that all is well. */
+  const orderingSignals = {
+    c01: { avgCycleDays: 7, orders: [
+      { at: "2026-08-19", value: 48200 }, { at: "2026-08-12", value: 44100 },
+      { at: "2026-08-05", value: 51600 }, { at: "2026-07-29", value: 46800 },
+    ] },
+    c02: { avgCycleDays: 10, orders: [
+      { at: "2026-08-03", value: 12400 }, { at: "2026-07-24", value: 15900 },
+      { at: "2026-07-13", value: 11200 },
+    ] },
+    c03: { avgCycleDays: 14, orders: [
+      { at: "2026-07-20", value: 31500 }, { at: "2026-07-06", value: 29800 },
+      { at: "2026-06-21", value: 33400 },
+    ] },
+    c04: { avgCycleDays: 7, orders: [
+      { at: "2026-08-17", value: 27800 }, { at: "2026-08-10", value: 26400 },
+      { at: "2026-08-03", value: 29100 },
+    ] },
+    c05: { avgCycleDays: 14, orders: [
+      { at: "2026-08-15", value: 96300 }, { at: "2026-08-01", value: 88700 },
+      { at: "2026-07-18", value: 91500 },
+    ] },
+    c11: { avgCycleDays: 5, orders: [
+      { at: "2026-08-20", value: 18900 }, { at: "2026-08-15", value: 17600 },
+      { at: "2026-08-10", value: 19400 }, { at: "2026-08-05", value: 16800 },
+    ] },
   };
 
   /* ---- Per-customer offers, backing the Offers drawer -------------------
@@ -269,19 +423,24 @@
      so the admin can enter a physical count and see the difference. Shapes
      follow the product list the live view consumes (name, article number,
      category, per-unit system stock). */
+  // `image` is a real (freely-licensed, Wikimedia Commons) photo standing in
+  // for the product's category — not the actual branded pack art, which this
+  // discovery has no rights to. `emoji` stays as the fallback glyph for the
+  // rare render path that has no room for a photo.
+  const IMG = (name) => "https://commons.wikimedia.org/wiki/Special:FilePath/" + encodeURIComponent(name) + "?width=200";
   const products = [
-    { id: "p01", name: "250ML PET", artNo: "34567", category: "SQUARE BOTTLE", unit: "Bottle", systemStock: 2, emoji: "🧴" },
-    { id: "p02", name: "500ML PET", artNo: "89744", category: "SQUARE BOTTLE", unit: "Bottle", systemStock: 1, emoji: "🧴" },
-    { id: "p03", name: "1LTR BOTTLE", artNo: "42534", category: "SQUARE BOTTLE", unit: "Bottle", systemStock: 1, emoji: "🍶" },
-    { id: "p04", name: "NATURAL WATER", artNo: "4534", category: "ROUND BOTTLE", unit: "Bottle", systemStock: 0, emoji: "💧" },
-    { id: "p05", name: "SODA 650ML", artNo: "435345", category: "ROUND BOTTLE", unit: "Bottle", systemStock: 0, emoji: "🥤" },
-    { id: "p06", name: "Mini Bread 100gm", artNo: "a102", category: "BREAD", unit: "Pc", systemStock: 2, emoji: "🥖" },
-    { id: "p07", name: "Milk Bread 200gm", artNo: "a103", category: "BREAD", unit: "Pc", systemStock: 1, emoji: "🍞" },
-    { id: "p08", name: "Milk Bread 350gm", artNo: "a104", category: "BREAD", unit: "Pc", systemStock: 3, emoji: "🍞" },
-    { id: "p09", name: "Amul Taaza 500ml", artNo: "d201", category: "DAIRY", unit: "Crate", systemStock: 12, emoji: "🥛" },
-    { id: "p10", name: "Britannia Bread 400g", artNo: "a105", category: "BREAD", unit: "Packet", systemStock: 30, emoji: "🍞" },
-    { id: "p11", name: "Tata Salt 1kg", artNo: "g301", category: "GROCERY", unit: "Box", systemStock: 8, emoji: "🧂" },
-    { id: "p12", name: "Parle-G 800g", artNo: "b401", category: "BISCUITS", unit: "Box", systemStock: 15, emoji: "🍪" },
+    { id: "p01", name: "250ML PET", artNo: "34567", category: "SQUARE BOTTLE", unit: "Bottle", systemStock: 2, emoji: "🧴", image: IMG("Plastic bottle.jpg") },
+    { id: "p02", name: "500ML PET", artNo: "89744", category: "SQUARE BOTTLE", unit: "Bottle", systemStock: 1, emoji: "🧴", image: IMG("Plastic bottle.jpg") },
+    { id: "p03", name: "1LTR BOTTLE", artNo: "42534", category: "SQUARE BOTTLE", unit: "Bottle", systemStock: 1, emoji: "🍶", image: IMG("Plastic bottle.jpg") },
+    { id: "p04", name: "NATURAL WATER", artNo: "4534", category: "ROUND BOTTLE", unit: "Bottle", systemStock: 0, emoji: "💧", image: IMG("Plastic Water Bottle.jpg") },
+    { id: "p05", name: "SODA 650ML", artNo: "435345", category: "ROUND BOTTLE", unit: "Bottle", systemStock: 0, emoji: "🥤", image: IMG("Coca-cola bottle.jpg") },
+    { id: "p06", name: "Mini Bread 100gm", artNo: "a102", category: "BREAD", unit: "Pc", systemStock: 2, emoji: "🥖", image: IMG("Fresh made bread 06.jpg") },
+    { id: "p07", name: "Milk Bread 200gm", artNo: "a103", category: "BREAD", unit: "Pc", systemStock: 1, emoji: "🍞", image: IMG("Fresh made bread 06.jpg") },
+    { id: "p08", name: "Milk Bread 350gm", artNo: "a104", category: "BREAD", unit: "Pc", systemStock: 3, emoji: "🍞", image: IMG("Fresh made bread 06.jpg") },
+    { id: "p09", name: "Amul Taaza 500ml", artNo: "d201", category: "DAIRY", unit: "Crate", systemStock: 12, emoji: "🥛", image: IMG("Dairy Crest Semi Skimmed Milk Bottle.jpg") },
+    { id: "p10", name: "Britannia Bread 400g", artNo: "a105", category: "BREAD", unit: "Packet", systemStock: 30, emoji: "🍞", image: IMG("Fresh made bread 06.jpg") },
+    { id: "p11", name: "Tata Salt 1kg", artNo: "g301", category: "GROCERY", unit: "Box", systemStock: 8, emoji: "🧂", image: IMG("Coles Smartbuy Salt.jpg") },
+    { id: "p12", name: "Parle-G 800g", artNo: "b401", category: "BISCUITS", unit: "Box", systemStock: 15, emoji: "🍪", image: IMG("Biscuit white background.jpg") },
   ];
 
   /* ---- Tenant feature flags (localStorage `appProp` in the live app) ----
@@ -316,8 +475,8 @@
     states,
     b2b,
     retail,
-    stockCounts,
-    stockSessions,
+    stockAudits,
+    orderingSignals,
     offers,
     products,
     appProp,
