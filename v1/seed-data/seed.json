@@ -1418,37 +1418,117 @@
       }
     ]
   },
-  "_orderingSignalsNote": "Synthesized reorder-cadence signal standing in for the real one, which would live in the Sales Orders module. lastOrderAt / lastOrderValue / avgCycleDays feed Ordering Status, the expected-next-order line on the Visit Brief, and the Ordering axis of customer health.",
+  "_orderingSignalsNote": "Synthesized reorder-behaviour signal standing in for the real one, which lives in the Sales Orders module. `orders` is newest-first; last order, order value, average order value and the observed cycle are derived from it at render time. `avgCycleDays` is the expected cadence: orders[0].at + avgCycleDays vs today decides On Track / Slipping / Overdue, feeds the expected-next-order line on the Visit Brief and customer page, and forms the Ordering axis of customer health.",
   "orderingSignals": {
     "c01": {
-      "lastOrderAt": "2026-08-19",
-      "lastOrderValue": 48200,
-      "avgCycleDays": 7
+      "avgCycleDays": 7,
+      "orders": [
+        {
+          "at": "2026-08-19",
+          "value": 48200
+        },
+        {
+          "at": "2026-08-12",
+          "value": 44100
+        },
+        {
+          "at": "2026-08-05",
+          "value": 51600
+        },
+        {
+          "at": "2026-07-29",
+          "value": 46800
+        }
+      ]
     },
     "c02": {
-      "lastOrderAt": "2026-08-03",
-      "lastOrderValue": 12400,
-      "avgCycleDays": 10
+      "avgCycleDays": 10,
+      "orders": [
+        {
+          "at": "2026-08-03",
+          "value": 12400
+        },
+        {
+          "at": "2026-07-24",
+          "value": 15900
+        },
+        {
+          "at": "2026-07-13",
+          "value": 11200
+        }
+      ]
     },
     "c03": {
-      "lastOrderAt": "2026-07-20",
-      "lastOrderValue": 31500,
-      "avgCycleDays": 14
+      "avgCycleDays": 14,
+      "orders": [
+        {
+          "at": "2026-07-20",
+          "value": 31500
+        },
+        {
+          "at": "2026-07-06",
+          "value": 29800
+        },
+        {
+          "at": "2026-06-21",
+          "value": 33400
+        }
+      ]
     },
     "c04": {
-      "lastOrderAt": "2026-08-17",
-      "lastOrderValue": 27800,
-      "avgCycleDays": 7
+      "avgCycleDays": 7,
+      "orders": [
+        {
+          "at": "2026-08-17",
+          "value": 27800
+        },
+        {
+          "at": "2026-08-10",
+          "value": 26400
+        },
+        {
+          "at": "2026-08-03",
+          "value": 29100
+        }
+      ]
     },
     "c05": {
-      "lastOrderAt": "2026-08-15",
-      "lastOrderValue": 96300,
-      "avgCycleDays": 14
+      "avgCycleDays": 14,
+      "orders": [
+        {
+          "at": "2026-08-15",
+          "value": 96300
+        },
+        {
+          "at": "2026-08-01",
+          "value": 88700
+        },
+        {
+          "at": "2026-07-18",
+          "value": 91500
+        }
+      ]
     },
     "c11": {
-      "lastOrderAt": "2026-08-20",
-      "lastOrderValue": 18900,
-      "avgCycleDays": 5
+      "avgCycleDays": 5,
+      "orders": [
+        {
+          "at": "2026-08-20",
+          "value": 18900
+        },
+        {
+          "at": "2026-08-15",
+          "value": 17600
+        },
+        {
+          "at": "2026-08-10",
+          "value": 19400
+        },
+        {
+          "at": "2026-08-05",
+          "value": 16800
+        }
+      ]
     }
   },
   "offers": {

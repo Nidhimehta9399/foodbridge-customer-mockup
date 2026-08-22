@@ -629,14 +629,30 @@
   // answer, not a guessed "On Track".
   function orderingStatusFor(customerId) {
     const sig = SEED.orderingSignals && SEED.orderingSignals[customerId];
-    if (!sig) return { bucket: "unknown", label: "Unknown" };
-    const expected = new Date(sig.lastOrderAt).getTime() + sig.avgCycleDays * DAY;
+    const orders = (sig && sig.orders) || [];
+    if (!sig || !orders.length) return { bucket: "unknown", label: "Unknown", orders: [] };
+    const last = orders[0];
+    const expected = new Date(last.at).getTime() + sig.avgCycleDays * DAY;
     const days = Math.round((now() - expected) / DAY);
     let bucket, label;
     if (days > 5) { bucket = "overdue"; label = "Overdue"; }
     else if (days > 0) { bucket = "slipping"; label = "Slipping"; }
     else { bucket = "on_track"; label = "On Track"; }
-    return { bucket, label, lastOrderAt: sig.lastOrderAt, lastOrderValue: sig.lastOrderValue, avgCycleDays: sig.avgCycleDays, expectedAt: expected, daysOverdue: days };
+    // The cycle the customer actually keeps, alongside the one we expect of
+    // them. When those two disagree, the expectation is the thing that's
+    // wrong, and a rep staring at "usually every 7 days" deserves to know.
+    let observedCycle = null;
+    if (orders.length > 1) {
+      const spans = orders.slice(0, -1).map((o, i) => (new Date(o.at) - new Date(orders[i + 1].at)) / DAY);
+      observedCycle = Math.round(spans.reduce((a, b) => a + b, 0) / spans.length);
+    }
+    const avgValue = Math.round(orders.reduce((n, o) => n + (o.value || 0), 0) / orders.length);
+    return {
+      bucket, label, orders,
+      lastOrderAt: last.at, lastOrderValue: last.value,
+      avgCycleDays: sig.avgCycleDays, observedCycle, avgValue,
+      expectedAt: expected, daysOverdue: days,
+    };
   }
   const ORDER_LABEL = { on_track: "On Track", slipping: "Slipping", overdue: "Overdue", unknown: "Unknown" };
   // "In ~2 days" is what a rep can act on; a timestamp is not.
@@ -814,7 +830,10 @@
       customers: renderCustomers,
       "needs-attention": renderNeedsAttention,
       audits: renderAudits,
-      "customer-detail": () => renderCustomerDetail(CURRENT.params.customerId, CURRENT.params.openAuditId),
+      "customer-detail": () => renderCustomerDetail(CURRENT.params.customerId),
+      inventory: renderInventory,
+      audit: renderAudit,
+      "customer-audits": renderCustomerAudits,
       "create-customer": renderCreateCustomer,
       "create-location": renderCreateLocation,
       "create-details": renderCreateDetails,
@@ -1203,7 +1222,7 @@
 
     wireSearchInput("audQ", (v) => { AUD_STATE.q = v; renderAudits(); });
     PAGE.querySelectorAll("[data-open-audit]").forEach((el) => {
-      el.onclick = () => go("customer-detail", { customerId: el.dataset.customer, openAuditId: el.dataset.openAudit });
+      el.onclick = () => go("audit", { customerId: el.dataset.customer, auditId: el.dataset.openAudit });
     });
   }
 
@@ -1227,97 +1246,706 @@
 
   /* ================================================================= VIEW: customer-detail */
 
-  let HIST = { q: "", filter: "all", openId: null };
+  // A Customer Health & Visit Hub, read top to bottom as:
+  //   who → what needs attention → how healthy → what's on the shelf →
+  //   when will they order → what the last visit found → which products →
+  //   what's happened here over time → who they are.
+  //
+  // Audits are the source of truth; everything above turns audit and order
+  // history into something a rep can act on before they walk in.
+  let DETAIL = { locationId: "all" };
 
-  function renderCustomerDetail(customerId, openAuditId) {
+  // Every audit belongs to one location. Customer-level intelligence is the
+  // aggregate of the location-level history, so "All locations" is the
+  // default and picking one narrows the whole page rather than just a list.
+  function auditsIn(customerId, locationId) {
+    const list = auditsFor(customerId);
+    return !locationId || locationId === "all" ? list : list.filter((a) => a.locationId === locationId);
+  }
+  function completedIn(customerId, locationId) {
+    return auditsIn(customerId, locationId).filter((a) => a.status === "completed");
+  }
+
+  function isLowStock(l) {
+    if (l.status !== "audited") return false;
+    const exp = lineExpected(l);
+    const good = l.conditionBreakdown.good || 0;
+    return exp > 0 && good > 0 && good < exp && !isStockOutRisk(l);
+  }
+
+  const SEVERITY = { high: "danger", mid: "warn", info: "info", ok: "ok" };
+
+  // What a rep should act on, worst first, each one a route to the thing it
+  // is about rather than a number that leaves them hunting.
+  function attentionItemsFor(customerId, locationId) {
+    const items = [];
+    const last = completedIn(customerId, locationId)[0] || null;
+
+    if (last) {
+      const so = stockOutLines(last);
+      if (so.length) items.push({ k: "stockout", sev: "high", ic: "⚠️", label: `${plural(so.length, "product")} may stock out`, sub: so.slice(0, 3).map((l) => productName(l.productId)).join(", "), filter: "stockout" });
+
+      const exp = last.lines.filter((l) => (l.conditionBreakdown.expired || 0) + (l.conditionBreakdown.nearExpiry || 0) > 0);
+      if (exp.length) items.push({ k: "expiry", sev: "mid", ic: "⏰", label: `${plural(exp.length, "product")} near or past expiry`, sub: exp.slice(0, 3).map((l) => productName(l.productId)).join(", "), filter: "expiry" });
+
+      const dmg = last.lines.filter((l) => (l.conditionBreakdown.damaged || 0) > 0);
+      if (dmg.length) items.push({ k: "damaged", sev: "mid", ic: "🧯", label: `${plural(dmg.length, "product")} damaged`, sub: dmg.slice(0, 3).map((l) => productName(l.productId)).join(", "), filter: "damaged" });
+
+      const nf = last.lines.filter((l) => l.status === "not_found");
+      if (nf.length) items.push({ k: "notfound", sev: "mid", ic: "❓", label: `${plural(nf.length, "product")} couldn't be verified`, sub: nf.slice(0, 3).map((l) => productName(l.productId)).join(", "), filter: "notfound" });
+    }
+
+    const order = orderingStatusFor(customerId);
+    if (order.bucket === "overdue") items.push({ k: "ordering", sev: "high", ic: "🛒", label: `Order overdue by ${plural(order.daysOverdue, "day")}`, sub: "Outside their usual cycle", scroll: "secOrdering" });
+    else if (order.bucket === "slipping") items.push({ k: "ordering", sev: "mid", ic: "🛒", label: "Order is slipping", sub: `Expected ${plural(order.daysOverdue, "day")} ago`, scroll: "secOrdering" });
+    else if (order.bucket === "on_track") items.push({ k: "ordering", sev: "info", ic: "🛒", label: `Order expected ${expectedOrderText(order).toLowerCase()}`, sub: "Ordering on track", scroll: "secOrdering" });
+
+    const vb = visitBucketFor(customerId);
+    if (vb === "overdue") items.push({ k: "overdue", sev: "high", ic: "📅", label: last ? "Audit overdue" : "Never audited", sub: last ? "Last visit " + fmtRelative(last.at).toLowerCase() : "No visit on record", action: "start" });
+    else if (vb === "due") items.push({ k: "due", sev: "mid", ic: "📅", label: "Due for a visit", sub: last ? "Last visit " + fmtRelative(last.at).toLowerCase() : "", action: "start" });
+
+    const fu = auditsIn(customerId, locationId).filter((a) => a.followUp && a.followUp.required);
+    if (fu.length) items.push({ k: "followup", sev: "mid", ic: "🚩", label: `${plural(fu.length, "follow-up")} pending`, sub: fu[0].followUp.note || "Return visit flagged", auditId: fu[0].id });
+
+    const order2 = SEVERITY; // keep the map referenced where severity is read
+    return items.sort((a, b) => ["high", "mid", "info", "ok"].indexOf(a.sev) - ["high", "mid", "info", "ok"].indexOf(b.sev)) && items;
+  }
+
+  // The next thing to do, stated as the button itself. A visit already
+  // underway outranks everything — finishing it is what makes the rest true.
+  function primaryActionFor(customerId, items) {
+    if (DraftStore.get(customerId)) return { k: "resume", label: "Continue Audit" };
+    const so = items.find((i) => i.k === "stockout");
+    if (so) return { k: "item", label: "Review Stock Risk", item: so };
+    const fu = items.find((i) => i.k === "followup");
+    if (fu) return { k: "item", label: "Review Follow-up", item: fu };
+    return { k: "start", label: "Start Audit" };
+  }
+
+  function renderCustomerDetail(customerId) {
     const customer = loadCustomer(customerId);
     if (!customer) {
       frame(`<div class="sah-empty" style="padding-top:60px"><div class="big">🔍</div><p>Customer not found.</p></div>`);
       return;
     }
-    if (openAuditId) { HIST = { q: "", filter: "all", openId: openAuditId }; CURRENT.params = { customerId }; }
 
-    const audits = auditsFor(customerId);
-    const latest = lastCompleted(customerId);
-    const openVariances = latest ? varianceLines(latest).length : 0;
-    const attention = latest ? flaggedLines(latest) : [];
-    const followUpCount = audits.filter((a) => a.followUp && a.followUp.required).length;
+    const locs = locationsFor(customer);
+    if (DETAIL.locationId !== "all" && !locs.some((l) => l.id === DETAIL.locationId)) DETAIL.locationId = "all";
+    const locId = DETAIL.locationId;
+    const scopedLoc = locId === "all" ? null : locationFor(customer, locId);
+
+    const audits = auditsIn(customerId, locId);
+    const completed = completedIn(customerId, locId);
+    const last = completed[0] || null;
+    const prev = completed[1] || null;
     const order = orderingStatusFor(customerId);
     const openDraft = DraftStore.get(customerId);
-    const score = customerScoreFor(customerId);
-    const sl = scoreLabel(score);
+    const items = attentionItemsFor(customerId, locId);
+    const primary = primaryActionFor(customerId, items);
 
-    let visible = audits;
-    if (HIST.filter === "followup") visible = visible.filter((a) => a.followUp && a.followUp.required);
-    const q = HIST.q.trim().toLowerCase();
-    if (q) visible = visible.filter((a) => (a.notes || "").toLowerCase().includes(q) || a.lines.some((l) => productName(l.productId).toLowerCase().includes(q)));
+    const score = last ? scoreFromAudit(last) : null;
+    const sl = scoreLabel(score);
+    const prevScore = prev ? scoreFromAudit(prev) : null;
 
     frame(`
-      <div class="sah-hero">
-        <a class="back" href="stock-audit.html">← Back to Stock Audit &amp; Health</a>
-        <div class="row">
-          <div>
-            <p class="eyebrow">Customer · Ordering ${esc(ORDER_LABEL[order.bucket])}</p>
+      ${customerHeaderHTML(customer, locs, scopedLoc, score, sl)}
+      ${actionRowHTML(primary, openDraft)}
+      ${attentionSectionHTML(items)}
+      ${last ? healthSectionHTML(last) : ""}
+      ${last ? inventorySectionHTML(last) : notAuditedHTML()}
+      ${orderingSectionHTML(order)}
+      ${last ? latestAuditSectionHTML(last, score, prevScore) : ""}
+      ${last ? productIssuesSectionHTML(last) : ""}
+      ${audits.length ? auditTimelineSectionHTML(audits) : ""}
+      ${activitySectionHTML(customer, audits, order)}
+      ${customerInfoSectionHTML(customer, locs)}
+    `);
+
+    wireCustomerDetail(customer, locs, items, primary);
+  }
+
+  /* -------------------------------------------------------------- header */
+
+  function customerHeaderHTML(customer, locs, scopedLoc, score, sl) {
+    const place = scopedLoc ? scopedLoc.name : locs.length > 1 ? `${plural(locs.length, "location")}` : locs[0] && locs[0].name;
+    const city = (scopedLoc || locs[0] || {}).line || "";
+    const cityShort = city.split(",").slice(-2).join(",").trim();
+    return `
+      <div class="cd-hero">
+        <button type="button" class="back" id="cdBack">← Stock Audit &amp; Health</button>
+        <div class="cd-id">
+          <span class="cd-avatar">🏬</span>
+          <div class="cd-name">
             <h1>${esc(titleCase(nameOf(customer)))}</h1>
-            <p class="sub">${esc(addressLine(customer.adress1, customer.state?.name, customer.postnr))}${customer.phone ? " · " + esc(customer.phone) : ""}</p>
+            <p>${esc([place, cityShort].filter(Boolean).join(" · "))}</p>
+            <span class="cd-score ${sl.cls}">${score == null ? "Not audited" : `${esc(sl.label)} · ${score}/100`}</span>
           </div>
-          <button class="sah-cta" id="startAudit">+ Start Audit</button>
         </div>
+        ${locs.length > 1
+          ? `<label class="cd-locpick">
+              <select id="cdLoc">
+                <option value="all" ${DETAIL.locationId === "all" ? "selected" : ""}>All locations (${locs.length})</option>
+                ${locs.map((l) => `<option value="${esc(l.id)}" ${DETAIL.locationId === l.id ? "selected" : ""}>${esc(l.name)} — ${esc(locationTypeMeta(l.type).label)}</option>`).join("")}
+              </select>
+            </label>`
+          : ""}
+      </div>`;
+  }
+
+  function actionRowHTML(primary, openDraft) {
+    const showStart = primary.k !== "start";
+    return `
+      <div class="cd-actions">
+        <button type="button" class="btn-wide primary" id="cdPrimary">${esc(primary.label)}</button>
+        ${showStart ? `<button type="button" class="btn-wide ghost" id="cdStart">Start Audit</button>` : ""}
       </div>
-      ${openDraft ? `<div class="resume-card" id="resumeCard">
+      ${openDraft && primary.k !== "resume" ? `<div class="resume-card" id="resumeCard">
         <span class="ic">⏸️</span>
-        <span class="txt"><b>Visit in progress</b>${draftProgress(openDraft).captured} of ${draftProgress(openDraft).total} products counted · ${esc(purposeMeta(openDraft.purpose).label)}</span>
+        <span class="txt"><b>Visit in progress</b>${draftProgress(openDraft).captured} of ${draftProgress(openDraft).total} products counted</span>
         <span class="go">Resume ›</span>
-      </div>` : ""}
-      <div class="sah-body">
-        ${latest ? `
-        <div class="sec-label">Customer Health — as of ${esc(fmtDateShort(latest.at))}</div>
-        <div class="score-card">
-          <div class="score-ring ${sl.cls}">${score}</div>
-          <div>
-            <div class="lbl">Health Score</div>
-            <div class="desc">${esc(sl.label)}</div>
-            <div class="sub">${plural(openVariances, "open variance")} · ${plural(attention.length, "attention item")} · ${plural(followUpCount, "follow-up")} open</div>
-            ${latest.outcome ? `<div class="outcome">${outcomeMeta(latest.outcome).icon} ${esc(outcomeMeta(latest.outcome).label)}</div>` : ""}
-          </div>
+      </div>` : ""}`;
+  }
+
+  /* ----------------------------------------------------------- attention */
+
+  function attentionSectionHTML(items) {
+    // "Order expected in ~3 days" is worth knowing but isn't a problem, so it
+    // must not be what keeps a healthy customer out of the calm state. Calm
+    // means nothing high or mid is outstanding; any purely informational
+    // chips still show underneath, as context rather than as a to-do list.
+    const actionable = items.filter((i) => i.sev === "high" || i.sev === "mid");
+    const info = items.filter((i) => i.sev === "info");
+    if (!actionable.length) {
+      return `<div class="cd-calm">
+          <span class="ic">✅</span>
+          <div><b>No attention needed</b><span>Inventory and ordering pattern are both healthy right now.</span></div>
         </div>
-        ${healthAxesHTML(latest)}` : `
-        <div class="sah-empty"><div class="big">📋</div><p>No completed audit yet — health is measured from the first visit.</p></div>`}
-        ${latest ? `<div class="sec-label">Attention Needed — since ${esc(fmtDate(latest.at))}</div>` : ""}
-        ${latest && attention.length ? attentionProductsHTML(attention) : latest ? `<p style="color:var(--muted);font-size:13px;margin:-4px 0 26px">Nothing flagged in the last audit — shelf looked healthy.</p>` : ""}
-        <div class="sec-label">Audit History</div>
-        <div class="sah-search-row"><div class="sah-search"><input type="search" id="histQ" value="${esc(HIST.q)}" placeholder="Search by product or note…"></div></div>
-        <div class="chips">
-          <button class="chip ${HIST.filter === "all" ? "on" : ""}" data-hf="all">All (${audits.length})</button>
-          <button class="chip ${HIST.filter === "followup" ? "on" : ""}" data-hf="followup">Follow-up needed (${followUpCount})</button>
+        ${info.length ? `<div class="attn-strip ${info.length === 1 ? "single" : ""}">${info.map((it) => attnChipHTML(it, items.indexOf(it))).join("")}</div>` : ""}`;
+    }
+    return `
+      <div class="section-head-row"><h2>Needs Attention</h2></div>
+      <div class="attn-strip ${items.length === 1 ? "single" : ""}">
+        ${items.map((it, i) => attnChipHTML(it, i)).join("")}
+      </div>`;
+  }
+
+  function attnChipHTML(it, i) {
+    return `
+      <button type="button" class="attn-chip ${esc(it.sev)}" data-attn="${i}">
+        <span class="ic">${it.ic}</span>
+        <span class="lb">${esc(it.label)}</span>
+        ${it.sub ? `<span class="sb">${esc(it.sub)}</span>` : ""}
+        <span class="chev">›</span>
+      </button>`;
+  }
+
+  /* -------------------------------------------------------------- health */
+
+  function healthSectionHTML(a) {
+    const score = scoreFromAudit(a);
+    const sl = scoreLabel(score);
+    const hb = healthBreakdown(a);
+    // Just the noun. The section is already called Customer Health, so
+    // repeating "Health" on all four costs a line wrap at 375px and buys
+    // nothing.
+    const rows = [
+      { k: "stock", label: "Stock" },
+      { k: "shelf", label: "Shelf" },
+      { k: "ordering", label: "Ordering" },
+      { k: "expiry", label: "Expiry" },
+    ];
+    return `
+      <div class="section-head-row"><h2>Customer Health</h2><span class="src">Latest audit · ${esc(fmtRelative(a.at))}</span></div>
+      <div class="cd-card health-card">
+        <div class="health-ring ${sl.cls}" style="--pct:${score}"><span class="inner"><b>${score}</b><em>${esc(sl.label)}</em></span></div>
+        <div class="health-rows">
+          ${rows.map((r) => {
+            const v = hb[r.k];
+            return `<div class="health-row ${axisCls(v)}">
+              <span class="lb">${esc(r.label)}</span>
+              <span class="bar"><span style="width:${v == null ? 0 : v}%"></span></span>
+              <b>${v == null ? "—" : v}</b>
+            </div>`;
+          }).join("")}
         </div>
-        ${visible.length ? visible.map(auditCardHTML).join("") : `<div class="sah-empty"><div class="big">🗂️</div><p>${audits.length ? "No audits match this view." : "No audits yet — start the first one above."}</p></div>`}
+      </div>`;
+  }
+
+  /* ----------------------------------------------------------- inventory */
+
+  function notAuditedHTML() {
+    return `<div class="cd-card cd-blank">
+      <span class="big">📋</span>
+      <b>No completed audit yet</b>
+      <span>Stock, shelf and expiry health are all measured from a visit. Start the first one to fill this page in.</span>
+    </div>`;
+  }
+
+  function inventorySectionHTML(a) {
+    const lines = auditLines(a).filter((l) => l.status === "audited");
+    const totals = conditionTotals(a);
+    const cov = auditCoverage(a);
+    const healthy = lines.filter((l) => dominantCondition(l) === "ok" && !isStockOutRisk(l) && !isLowStock(l)).length;
+    const stockout = stockOutLines(a).length;
+    const low = lines.filter(isLowStock).length;
+    const nearExp = lines.filter((l) => (l.conditionBreakdown.nearExpiry || 0) > 0).length;
+    const expired = lines.filter((l) => (l.conditionBreakdown.expired || 0) > 0).length;
+    const damaged = lines.filter((l) => (l.conditionBreakdown.damaged || 0) > 0).length;
+    const units = lines.reduce((n, l) => n + linePhysical(l), 0);
+    const atRisk = totals.nearExpiry + totals.expired + totals.damaged;
+
+    // Counts are products, because a product is the thing a rep acts on. The
+    // unit totals go on one line underneath rather than into the tiles, where
+    // mixing "8 products" with "684 units" would make neither readable.
+    const tiles = [
+      { n: cov.audited, l: "Tracked", cls: "" },
+      { n: healthy, l: "Healthy", cls: healthy ? "ok" : "" },
+      { n: stockout, l: "Stock-out risk", cls: stockout ? "danger" : "", filter: "stockout" },
+      { n: low, l: "Low stock", cls: low ? "warn" : "", filter: "low" },
+      { n: nearExp, l: "Near expiry", cls: nearExp ? "warn" : "", filter: "expiry" },
+      { n: expired, l: "Expired", cls: expired ? "danger" : "", filter: "expiry" },
+      { n: damaged, l: "Damaged", cls: damaged ? "danger" : "", filter: "damaged" },
+      { n: cov.notFound, l: "Not found", cls: cov.notFound ? "warn" : "", filter: "notfound" },
+    ];
+
+    return `
+      <div class="section-head-row"><h2>Inventory Snapshot</h2><span class="src">Latest audit · ${esc(fmtRelative(a.at))}</span></div>
+      <div class="cd-card">
+        <div class="inv-grid">
+          ${tiles.map((t) => `<button type="button" class="inv-tile ${t.cls}" ${t.filter && t.n ? `data-inv="${t.filter}"` : "disabled"}><b>${t.n}</b><span>${esc(t.l)}</span></button>`).join("")}
+        </div>
+        <p class="inv-units">${plural(units, "unit")} counted${atRisk ? ` · ${atRisk} at risk` : ""}${cov.skipped ? ` · ${cov.skipped} not reached` : ""}</p>
+        <button type="button" class="cd-cta" id="cdInventory">View Inventory ›</button>
+      </div>`;
+  }
+
+  /* ------------------------------------------------------------ ordering */
+
+  function orderingSectionHTML(order) {
+    if (order.bucket === "unknown") {
+      return `
+        <div class="section-head-row" id="secOrdering"><h2>Ordering Pattern</h2></div>
+        <div class="cd-card cd-blank small"><b>No ordering signal yet</b><span>This customer has no order history on the platform, so their reorder cadence can't be read.</span></div>`;
+    }
+    const cycleDisagrees = order.observedCycle != null && Math.abs(order.observedCycle - order.avgCycleDays) >= 2;
+    return `
+      <div class="section-head-row" id="secOrdering"><h2>Ordering Pattern</h2><span class="status-tag ${order.bucket === "on_track" ? "ok" : order.bucket === "slipping" ? "warn" : "danger"}">${esc(order.label)}</span></div>
+      <div class="cd-card">
+        <div class="ord-row"><span class="ic">🗓️</span><span class="lb">Usually orders every</span><b>${plural(order.avgCycleDays, "day")}</b></div>
+        ${cycleDisagrees ? `<div class="ord-note">Recent orders have actually come every ~${plural(order.observedCycle, "day")} — the expected cadence may be out of date.</div>` : ""}
+        <div class="ord-row"><span class="ic">🧾</span><span class="lb">Last order</span><b>${esc(money(order.lastOrderValue))}<small>${esc(fmtDateShort(order.lastOrderAt))}</small></b></div>
+        <div class="ord-row"><span class="ic">📈</span><span class="lb">Average order</span><b>${esc(money(order.avgValue))}<small>across last ${order.orders.length}</small></b></div>
+        <div class="ord-row"><span class="ic">📦</span><span class="lb">Expected next order</span><b class="${order.bucket === "overdue" ? "late" : ""}">${esc(expectedOrderText(order))}</b></div>
+      </div>`;
+  }
+
+  /* -------------------------------------------------------- latest audit */
+
+  function latestAuditSectionHTML(a, score, prevScore) {
+    const cov = auditCoverage(a);
+    const delta = prevScore == null ? null : score - prevScore;
+    const stats = [
+      { n: cov.audited, l: "Products audited", cls: "" },
+      { n: varianceLines(a).length, l: "Variances", cls: "warn" },
+      { n: stockOutLines(a).length, l: "Stock-out risks", cls: "danger" },
+      { n: a.lines.filter((l) => (l.conditionBreakdown.nearExpiry || 0) > 0).length, l: "Near expiry", cls: "warn" },
+      { n: a.lines.filter((l) => (l.conditionBreakdown.damaged || 0) > 0).length, l: "Damaged", cls: "danger" },
+    ];
+    return `
+      <div class="section-head-row"><h2>Latest Audit</h2></div>
+      <div class="cd-card">
+        <div class="la-head">
+          <div><b>${esc(fmtDate(a.at))}</b><span>${esc(a.auditor || AUDITOR.name)} · ${esc(purposeMeta(a.purpose).label)}</span></div>
+          ${a.outcome ? `<span class="status-tag ${a.outcome === "healthy" ? "ok" : "warn"}">${outcomeMeta(a.outcome).icon} ${esc(outcomeMeta(a.outcome).label)}</span>` : ""}
+        </div>
+        <div class="la-stats">
+          ${stats.map((s) => `<div class="la-stat"><span class="dot ${s.n ? s.cls || "ok" : "none"}"></span><b>${s.n}</b><span>${esc(s.l)}</span></div>`).join("")}
+        </div>
+        ${a.partial && a.partial.isPartial ? `<p class="la-partial">Partial visit — ${esc((PARTIAL_REASONS.find((r) => r.k === a.partial.reason) || { label: "reason not given" }).label.toLowerCase())}, ${cov.skipped} not reached.</p>` : ""}
+        ${delta == null
+          ? `<div class="la-delta flat">First measured score · ${score}</div>`
+          : `<div class="la-delta ${delta > 0 ? "up" : delta < 0 ? "down" : "flat"}">Health score ${prevScore} → ${score} ${delta > 0 ? "↑" : delta < 0 ? "↓" : "—"}</div>`}
+        <button type="button" class="cd-cta" data-audit="${esc(a.id)}">View Audit ›</button>
+      </div>`;
+  }
+
+  /* ------------------------------------------------------ product issues */
+
+  function productIssuesSectionHTML(a) {
+    const issues = auditLines(a)
+      .map((l) => ({ l, r: issueFor(l) }))
+      .filter((x) => x.r)
+      .sort((x, y) => x.r.rank - y.r.rank)
+      .slice(0, 4);
+    if (!issues.length) return "";
+    return `
+      <div class="section-head-row"><h2>Products Needing Attention</h2></div>
+      <div class="cd-card pi-card">
+        ${issues.map(({ l, r }) => {
+          const p = productById(l.productId) || {};
+          return `<button type="button" class="pi-row" data-inv="all">
+            <span class="thumb">${p.emoji || "📦"}</span>
+            <span class="info"><span class="nm">${esc(p.name || l.productId)}</span><span class="sku">SKU ${esc(p.artNo || "—")}</span></span>
+            <span class="right">
+              <span class="status-tag ${r.cls}">${esc(r.label)}</span>
+              <span class="qty">${esc(r.qty)}</span>
+            </span>
+            <span class="chev">›</span>
+          </button>`;
+        }).join("")}
+        <button type="button" class="cd-cta" data-inv="issues">View All Issues ›</button>
+      </div>`;
+  }
+
+  // One problem per product, worst first, with the number that shows why.
+  function issueFor(l) {
+    const p = productById(l.productId) || {};
+    const unit = p.unit ? " " + p.unit.toLowerCase() : "";
+    const cb = l.conditionBreakdown;
+    if (l.status === "not_found") return { rank: 1, cls: "warn", label: "Not found", qty: notFoundMeta(l.notFoundReason).label };
+    if (isStockOutRisk(l)) return { rank: 0, cls: "danger", label: "Stock-out risk", qty: `${cb.good || 0} / ${lineExpected(l)}${unit}` };
+    if (cb.expired > 0) return { rank: 2, cls: "danger", label: "Expired", qty: `${cb.expired}${unit}` };
+    if (cb.damaged > 0) return { rank: 3, cls: "danger", label: "Damaged", qty: `${cb.damaged}${unit}` };
+    if (cb.nearExpiry > 0) return { rank: 4, cls: "warn", label: "Near expiry", qty: `${cb.nearExpiry}${unit}` };
+    if (isLowStock(l)) return { rank: 5, cls: "warn", label: "Low stock", qty: `${cb.good || 0} / ${lineExpected(l)}${unit}` };
+    if (isOverstock(l)) return { rank: 6, cls: "neutral", label: "Overstock", qty: `${linePhysical(l)} / ${lineExpected(l)}${unit}` };
+    return null;
+  }
+
+  /* ------------------------------------------------------ audit timeline */
+
+  function auditTimelineSectionHTML(audits) {
+    const rows = audits.slice(0, 4);
+    return `
+      <div class="section-head-row"><h2>Audit History</h2></div>
+      <div class="cd-card tl-card">
+        ${rows.map((a) => {
+          const cov = auditCoverage(a);
+          const flagged = flaggedLines(a).length;
+          const variance = varianceLines(a).length;
+          const bits = a.status !== "completed"
+            ? [statusMeta(a.status).label]
+            : [plural(cov.audited, "product"), variance ? plural(variance, "variance") : null, flagged ? `${flagged} flagged` : null].filter(Boolean);
+          return `<button type="button" class="tl-row" data-audit="${esc(a.id)}">
+            <span class="tl-dot ${a.status !== "completed" ? "muted" : flagged ? "warn" : "ok"}"></span>
+            <span class="tl-body">
+              <span class="when">${esc(fmtRelative(a.at))}<em>${esc(fmtDateShort(a.at))}</em></span>
+              <span class="what">${esc(bits.join(" · "))}</span>
+            </span>
+            <span class="chev">›</span>
+          </button>`;
+        }).join("")}
+        <button type="button" class="cd-cta" id="cdAllAudits">View All Audits (${audits.length}) ›</button>
+      </div>`;
+  }
+
+  /* ---------------------------------------------------- customer activity */
+
+  // One thread of what has happened at this customer, built only from things
+  // the platform actually knows: visits, what they concluded, follow-ups
+  // raised, and orders placed. Nothing here is invented to fill the gap.
+  function activityEventsFor(customer, audits, order) {
+    const ev = [];
+    audits.forEach((a) => {
+      if (a.status === "completed") {
+        ev.push({ at: a.at, ic: "📋", cls: "audit", title: `${purposeMeta(a.purpose).label} — ${plural(auditCoverage(a).audited, "product")}`, sub: a.outcome ? outcomeMeta(a.outcome).label : "", auditId: a.id });
+      } else {
+        ev.push({ at: a.at, ic: "🚫", cls: "muted", title: `Visit ${statusMeta(a.status).label.toLowerCase()}`, sub: a.partial && a.partial.reason ? (ABANDON_REASONS.find((r) => r.k === a.partial.reason) || { label: "" }).label : "", auditId: a.id });
+      }
+      if (a.followUp && a.followUp.required && a.followUp.at) {
+        ev.push({ at: a.followUp.at, ic: "🚩", cls: "flag", title: "Follow-up raised", sub: a.followUp.note || "", auditId: a.id });
+      }
+    });
+    (order.orders || []).forEach((o) => ev.push({ at: o.at, ic: "🧾", cls: "order", title: "Order placed", sub: money(o.value) }));
+    if (customer.createdAt) ev.push({ at: customer.createdAt, ic: "🤝", cls: "muted", title: "Customer added", sub: "" });
+    return ev.sort((a, b) => new Date(b.at) - new Date(a.at));
+  }
+
+  let ACTIVITY_LIMIT = 6;
+
+  function activitySectionHTML(customer, audits, order) {
+    const all = activityEventsFor(customer, audits, order);
+    if (!all.length) return "";
+    const shown = all.slice(0, ACTIVITY_LIMIT);
+    return `
+      <div class="section-head-row"><h2>Customer Activity</h2></div>
+      <div class="cd-card act-card">
+        ${shown.map((e) => `
+          <div class="act-row ${esc(e.cls)}" ${e.auditId ? `data-audit="${esc(e.auditId)}" role="button"` : ""}>
+            <span class="ic">${e.ic}</span>
+            <span class="body"><span class="ti">${esc(e.title)}</span>${e.sub ? `<span class="sb">${esc(e.sub)}</span>` : ""}</span>
+            <span class="when">${esc(fmtDateShort(e.at))}</span>
+          </div>`).join("")}
+        ${all.length > shown.length ? `<button type="button" class="cd-cta" id="cdMoreActivity">Show earlier activity (${all.length - shown.length}) ›</button>` : ""}
+      </div>`;
+  }
+
+  /* -------------------------------------------------- customer information */
+
+  function customerInfoSectionHTML(customer, locs) {
+    const rows = [
+      ["Customer", titleCase(nameOf(customer))],
+      ["Locations", locs.map((l) => `${l.name} (${locationTypeMeta(l.type).label})`).join(", ")],
+      ["Address", addressLine(customer.adress1, customer.state?.name, customer.postnr)],
+      ["Phone", customer.phone || "—"],
+      ["Email", customer.email || "—"],
+      ["Customer since", customer.createdAt ? fmtDateShort(customer.createdAt) + " " + new Date(customer.createdAt).getFullYear() : "—"],
+      ["Supply chain", titleCase(customer.supplyChainType || "—")],
+    ];
+    return `
+      <div class="section-head-row"><h2>Customer Information</h2></div>
+      <div class="cd-card info-card">
+        ${rows.map(([k, v]) => `<div class="info-line"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join("")}
+      </div>`;
+  }
+
+  /* --------------------------------------------------------------- wiring */
+
+  function wireCustomerDetail(customer, locs, items, primary) {
+    const cid = customer._id;
+    const goInv = (filter) => go("inventory", { customerId: cid, filter: filter || "all" });
+
+    $("#cdBack", PAGE).onclick = () => go("customers", {}, true);
+
+    const locSel = $("#cdLoc", PAGE);
+    if (locSel) locSel.onchange = (e) => { DETAIL.locationId = e.target.value; renderCustomerDetail(cid); };
+
+    const runItem = (it) => {
+      if (it.filter) return goInv(it.filter);
+      if (it.auditId) return go("audit", { customerId: cid, auditId: it.auditId });
+      if (it.action === "start") return startAuditFor(cid);
+      if (it.scroll) {
+        const el = PAGE.querySelector("#" + it.scroll);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    };
+
+    $("#cdPrimary", PAGE).onclick = () => {
+      if (primary.k === "resume") return resumeDraft(cid);
+      if (primary.k === "start") return startAuditFor(cid);
+      runItem(primary.item);
+    };
+    const startBtn = $("#cdStart", PAGE);
+    if (startBtn) startBtn.onclick = () => startAuditFor(cid);
+    const resumeCard = $("#resumeCard", PAGE);
+    if (resumeCard) resumeCard.onclick = () => resumeDraft(cid);
+
+    PAGE.querySelectorAll("[data-attn]").forEach((b) => (b.onclick = () => runItem(items[Number(b.dataset.attn)])));
+    PAGE.querySelectorAll("[data-inv]").forEach((b) => (b.onclick = () => goInv(b.dataset.inv)));
+    PAGE.querySelectorAll("[data-audit]").forEach((b) => (b.onclick = () => go("audit", { customerId: cid, auditId: b.dataset.audit })));
+
+    const inv = $("#cdInventory", PAGE);
+    if (inv) inv.onclick = () => goInv("all");
+    const allAudits = $("#cdAllAudits", PAGE);
+    if (allAudits) allAudits.onclick = () => go("customer-audits", { customerId: cid });
+    const more = $("#cdMoreActivity", PAGE);
+    if (more) more.onclick = () => { ACTIVITY_LIMIT += 10; renderCustomerDetail(cid); };
+  }
+
+  /* ================================================================= VIEW: inventory */
+
+  // What the shelf looked like at the last visit, product by product. Every
+  // count on this page came from an audit — there is no other source of
+  // truth for a customer's stock — so it says which one, and when.
+  const INV_FILTERS = [
+    { k: "all", label: "All" },
+    { k: "issues", label: "Issues" },
+    { k: "stockout", label: "Stock-out risk" },
+    { k: "low", label: "Low stock" },
+    { k: "expiry", label: "Expiry" },
+    { k: "damaged", label: "Damaged" },
+    { k: "notfound", label: "Not found" },
+  ];
+  let INV_STATE = { q: "", filter: "all" };
+
+  function invMatches(l, filter) {
+    const cb = l.conditionBreakdown;
+    if (filter === "all") return true;
+    if (filter === "issues") return !!issueFor(l);
+    if (filter === "stockout") return isStockOutRisk(l);
+    if (filter === "low") return isLowStock(l);
+    if (filter === "expiry") return (cb.nearExpiry || 0) + (cb.expired || 0) > 0;
+    if (filter === "damaged") return (cb.damaged || 0) > 0;
+    if (filter === "notfound") return l.status === "not_found";
+    return true;
+  }
+
+  function renderInventory() {
+    const customer = loadCustomer(CURRENT.params.customerId);
+    if (!customer) { go("customers", {}, true); return; }
+    if (CURRENT.params.filter) { INV_STATE = { q: "", filter: CURRENT.params.filter }; CURRENT.params = { customerId: customer._id }; }
+
+    const a = completedIn(customer._id, DETAIL.locationId)[0];
+    if (!a) {
+      frame(`<div class="sah-page-head"><h1>Inventory</h1><p>${esc(titleCase(nameOf(customer)))}</p></div>
+        ${notAuditedHTML()}`);
+      return;
+    }
+
+    const q = INV_STATE.q.trim().toLowerCase();
+    let rows = auditLines(a).filter((l) => invMatches(l, INV_STATE.filter));
+    if (q) rows = rows.filter((l) => {
+      const p = productById(l.productId) || {};
+      return (p.name || "").toLowerCase().includes(q) || String(p.artNo || "").toLowerCase().includes(q);
+    });
+    // Problems first — the reason anyone opens this screen.
+    rows = rows.slice().sort((x, y) => ((issueFor(x) || { rank: 99 }).rank) - ((issueFor(y) || { rank: 99 }).rank));
+
+    frame(`
+      <div class="sah-page-head">
+        <button type="button" class="back" id="invBack">← ${esc(titleCase(nameOf(customer)))}</button>
+        <h1>Inventory</h1>
+        <p>As counted on ${esc(fmtDate(a.at))} · ${esc(a.auditor || AUDITOR.name)}</p>
+      </div>
+      <div class="sah-search-row"><div class="sah-search"><input type="search" id="invQ" value="${esc(INV_STATE.q)}" placeholder="Search product or SKU…"></div></div>
+      <div class="chips">
+        ${INV_FILTERS.map((f) => {
+          const n = auditLines(a).filter((l) => invMatches(l, f.k)).length;
+          return `<button class="chip ${INV_STATE.filter === f.k ? "on" : ""}" data-if="${f.k}">${esc(f.label)} (${n})</button>`;
+        }).join("")}
+      </div>
+      ${rows.length
+        ? `<div class="cd-card pi-card">${rows.map(invRowHTML).join("")}</div>`
+        : `<div class="sah-empty"><div class="big">${q ? "🔍" : "✅"}</div><p>${q ? "No product matches that." : "Nothing in this category."}</p></div>`}
+    `);
+
+    $("#invBack", PAGE).onclick = back;
+    wireSearchInput("invQ", (v) => { INV_STATE.q = v; renderInventory(); });
+    PAGE.querySelectorAll("[data-if]").forEach((b) => (b.onclick = () => { INV_STATE.filter = b.dataset.if; renderInventory(); }));
+  }
+
+  function invRowHTML(l) {
+    const p = productById(l.productId) || {};
+    const r = issueFor(l);
+    const unit = p.unit ? " " + p.unit.toLowerCase() : "";
+    return `<div class="pi-row static">
+      <span class="thumb">${p.emoji || "📦"}</span>
+      <span class="info">
+        <span class="nm">${esc(p.name || l.productId)}</span>
+        <span class="sku">SKU ${esc(p.artNo || "—")} · expected ${lineExpected(l)}${esc(unit)}</span>
+      </span>
+      <span class="right">
+        ${r ? `<span class="status-tag ${r.cls}">${esc(r.label)}</span>` : `<span class="status-tag ok">Healthy</span>`}
+        <span class="qty">${esc(r ? r.qty : `${linePhysical(l)}${unit} on hand`)}</span>
+      </span>
+    </div>`;
+  }
+
+  /* ================================================================= VIEW: audit (one visit) */
+
+  function renderAudit() {
+    const customer = loadCustomer(CURRENT.params.customerId);
+    const a = auditsFor(CURRENT.params.customerId).find((x) => x.id === CURRENT.params.auditId);
+    if (!customer || !a) { go("customers", {}, true); return; }
+    const cov = auditCoverage(a);
+    const score = a.status === "completed" ? scoreFromAudit(a) : null;
+    const sl = scoreLabel(score);
+
+    frame(`
+      <div class="sah-page-head">
+        <button type="button" class="back" id="auBack">← ${esc(titleCase(nameOf(customer)))}</button>
+        <h1>${esc(purposeMeta(a.purpose).label)}</h1>
+        <p>${esc(placeLine(customer, a.locationId))} · ${esc(fmtDate(a.at))}<br>${esc(a.auditor || AUDITOR.name)} · ${esc(AUDITOR.role)}</p>
+      </div>
+
+      ${score == null
+        ? `<div class="cd-card cd-blank small"><b>${esc(statusMeta(a.status).label)}</b><span>This visit recorded no completed count, so it carries no health score.</span></div>`
+        : `<div class="score-card">
+            <div class="score-ring ${sl.cls}">${score}</div>
+            <div>
+              <div class="lbl">Health Score</div>
+              <div class="desc">${esc(sl.label)}</div>
+              <div class="sub">${cov.audited} of ${cov.expected} products counted</div>
+              ${a.outcome ? `<div class="outcome">${outcomeMeta(a.outcome).icon} ${esc(outcomeMeta(a.outcome).label)}</div>` : ""}
+            </div>
+          </div>`}
+
+      ${score == null ? "" : `<div class="sec-label">Health Breakdown</div>${healthAxesHTML(a)}`}
+
+      <div class="sec-label">What This Visit Found</div>
+      <div class="cd-card">
+        ${auditMetaHTML(a)}
+        ${a.notes ? `<p class="notes">"${esc(a.notes)}"</p>` : ""}
+        ${a.lines.length ? a.lines.map(detailLineHTML).join("") : `<p class="notes">No products were counted on this visit.</p>`}
+        ${a.finalNote ? `<p class="notes">"${esc(a.finalNote)}"</p>` : ""}
+        ${followUpHTML(a)}
       </div>
     `);
 
-    $("#startAudit", PAGE).onclick = () => startAuditFor(customerId);
-    const resumeCard = $("#resumeCard", PAGE);
-    if (resumeCard) resumeCard.onclick = () => resumeDraft(customerId);
-    wireSearchInput("histQ", (v) => { HIST.q = v; renderCustomerDetail(customerId); });
-    PAGE.querySelectorAll("[data-hf]").forEach((b) => (b.onclick = () => { HIST.filter = b.dataset.hf; renderCustomerDetail(customerId); }));
-    PAGE.querySelectorAll("[data-toggle]").forEach((el) => (el.onclick = () => { HIST.openId = HIST.openId === el.dataset.toggle ? null : el.dataset.toggle; renderCustomerDetail(customerId); }));
+    $("#auBack", PAGE).onclick = back;
+    wireFollowUp(a, () => renderAudit());
+  }
+
+  function wireFollowUp(a, rerender) {
     PAGE.querySelectorAll("[data-fu-save]").forEach((b) => (b.onclick = () => {
-      const a = audits.find((x) => x.id === b.dataset.fuSave);
-      if (!a) return;
       const ta = PAGE.querySelector(`[data-fu-note="${a.id}"]`);
       a.followUp = { required: true, note: ta ? ta.value.trim() : "", at: new Date().toISOString() };
       AuditStore.save();
       toast("Follow-up flagged.");
-      renderCustomerDetail(customerId);
+      rerender();
     }));
     PAGE.querySelectorAll("[data-fu-clear]").forEach((b) => (b.onclick = () => {
-      const a = audits.find((x) => x.id === b.dataset.fuClear);
-      if (!a) return;
       a.followUp = { required: false, note: "", at: "" };
       AuditStore.save();
       toast("Follow-up cleared.");
-      renderCustomerDetail(customerId);
+      rerender();
     }));
+  }
+
+  /* ================================================================= VIEW: customer-audits */
+
+  let CAUD_STATE = { q: "", filter: "all" };
+
+  function renderCustomerAudits() {
+    const customer = loadCustomer(CURRENT.params.customerId);
+    if (!customer) { go("customers", {}, true); return; }
+    const all = auditsIn(customer._id, DETAIL.locationId);
+    const followUps = all.filter((a) => a.followUp && a.followUp.required).length;
+
+    let rows = CAUD_STATE.filter === "followup" ? all.filter((a) => a.followUp && a.followUp.required) : all;
+    const q = CAUD_STATE.q.trim().toLowerCase();
+    if (q) rows = rows.filter((a) => (a.notes || "").toLowerCase().includes(q) || (a.finalNote || "").toLowerCase().includes(q) || a.lines.some((l) => productName(l.productId).toLowerCase().includes(q)));
+
+    frame(`
+      <div class="sah-page-head">
+        <button type="button" class="back" id="caBack">← ${esc(titleCase(nameOf(customer)))}</button>
+        <h1>Audit History</h1>
+        <p>Every visit to this customer, newest first.</p>
+      </div>
+      <div class="sah-search-row"><div class="sah-search"><input type="search" id="caQ" value="${esc(CAUD_STATE.q)}" placeholder="Search by product or note…"></div></div>
+      <div class="chips">
+        <button class="chip ${CAUD_STATE.filter === "all" ? "on" : ""}" data-caf="all">All (${all.length})</button>
+        <button class="chip ${CAUD_STATE.filter === "followup" ? "on" : ""}" data-caf="followup">Follow-up needed (${followUps})</button>
+      </div>
+      ${rows.length
+        ? rows.map((a) => auditSummaryRowHTML(a, customer)).join("")
+        : `<div class="sah-empty"><div class="big">🗂️</div><p>No audits match this view.</p></div>`}
+    `);
+
+    $("#caBack", PAGE).onclick = back;
+    wireSearchInput("caQ", (v) => { CAUD_STATE.q = v; renderCustomerAudits(); });
+    PAGE.querySelectorAll("[data-caf]").forEach((b) => (b.onclick = () => { CAUD_STATE.filter = b.dataset.caf; renderCustomerAudits(); }));
+    PAGE.querySelectorAll("[data-audit]").forEach((b) => (b.onclick = () => go("audit", { customerId: customer._id, auditId: b.dataset.audit })));
+  }
+
+  function auditSummaryRowHTML(a, customer) {
+    const cov = auditCoverage(a);
+    const variance = varianceLines(a).length;
+    const flagged = flaggedLines(a).length;
+    return `
+      <button type="button" class="audit-row-card" data-audit="${esc(a.id)}">
+        <div class="top">
+          <div><div class="nm">${esc(fmtDate(a.at))}</div><div class="when">${esc(a.auditor || AUDITOR.name)} · ${esc(placeLine(customer, a.locationId))}</div></div>
+        </div>
+        <span class="purpose">${esc(purposeMeta(a.purpose).icon)} ${esc(purposeMeta(a.purpose).label)}</span>
+        <div class="stats">
+          ${auditStatusHTML(a)}
+          ${a.status !== "completed" ? "" : `<span class="status-tag neutral">${plural(cov.audited, "product")}</span>`}
+          ${a.status !== "completed" ? "" : variance ? `<span class="status-tag warn">${plural(variance, "variance")}</span>` : `<span class="status-tag ok">All matched</span>`}
+          ${flagged ? `<span class="status-tag danger">${flagged} flagged</span>` : ""}
+          ${a.followUp && a.followUp.required ? `<span class="status-tag followup">Follow-up needed</span>` : ""}
+        </div>
+      </button>`;
   }
 
   function attentionProductsHTML(lines) {
@@ -1331,35 +1959,6 @@
         </div>`;
       }).join("")}
     </div>`;
-  }
-
-  function auditCardHTML(a) {
-    const open = HIST.openId === a.id;
-    const variance = varianceLines(a).length;
-    const flagged = flaggedLines(a).length;
-    return `
-      <div class="audit-card ${open ? "open" : ""}" data-id="${a.id}">
-        <div class="top" data-toggle="${a.id}">
-          <div>
-            <div class="when">${esc(fmtDate(a.at))}</div>
-            <div class="who">${esc(a.auditor || "—")} · ${esc(purposeMeta(a.purpose).label)} · ${a.lines.length} product${a.lines.length === 1 ? "" : "s"}</div>
-            <div class="stats">
-              ${auditStatusHTML(a)}
-              ${a.status !== "completed" ? "" : variance ? `<span class="status-tag warn">${variance} variance${variance === 1 ? "" : "s"}</span>` : `<span class="status-tag neutral">All matched</span>`}
-              ${flagged ? `<span class="status-tag danger">${flagged} flagged</span>` : ""}
-              ${a.followUp && a.followUp.required ? `<span class="status-tag followup">Follow-up needed</span>` : ""}
-            </div>
-          </div>
-          <span class="chev">▾</span>
-        </div>
-        <div class="audit-detail">
-          ${auditMetaHTML(a)}
-          ${a.notes ? `<p class="notes">"${esc(a.notes)}"</p>` : ""}
-          ${a.lines.map(detailLineHTML).join("")}
-          ${a.finalNote ? `<p class="notes">"${esc(a.finalNote)}"</p>` : ""}
-          ${followUpHTML(a)}
-        </div>
-      </div>`;
   }
 
   // The whole observation, not just the number. A count six months old is

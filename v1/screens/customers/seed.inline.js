@@ -368,22 +368,42 @@
     ],
   };
 
-  /* ---- Ordering signals, backing the "Ordering Status" column ------------
-     Distributor-visible reorder cadence per customer — synthesized for this
+  /* ---- Ordering signals, backing Ordering Status and Ordering Pattern ----
+     Distributor-visible reorder behaviour per customer — synthesized for this
      discovery (the real signal lives in the Sales Orders module, a separate
-     repo not wired into this seed). `avgCycleDays` is how often this
-     customer typically reorders; `expectedNextOrderAt` (derived at render
-     time from lastOrderAt + avgCycleDays) vs. today decides On Track /
-     Slipping / Overdue. Customers absent here show "Unknown" — that's
-     honest: it means the platform doesn't have an ordering signal yet, not
-     that everything is fine. */
+     repo not wired into this seed). `orders` is newest-first; last order,
+     order value, average order value and the observed cycle are all derived
+     from it at render time, so there is one place to edit and nothing to
+     keep in sync. `avgCycleDays` is the expected cadence — expected next
+     order (orders[0].at + avgCycleDays) vs. today decides On Track /
+     Slipping / Overdue, and feeds the Ordering axis of customer health.
+     Customers absent here show "Unknown" — that's honest: it means the
+     platform has no ordering signal for them yet, not that all is well. */
   const orderingSignals = {
-    c01: { lastOrderAt: "2026-08-19", lastOrderValue: 48200, avgCycleDays: 7 },
-    c02: { lastOrderAt: "2026-08-03", lastOrderValue: 12400, avgCycleDays: 10 },
-    c03: { lastOrderAt: "2026-07-20", lastOrderValue: 31500, avgCycleDays: 14 },
-    c04: { lastOrderAt: "2026-08-17", lastOrderValue: 27800, avgCycleDays: 7 },
-    c05: { lastOrderAt: "2026-08-15", lastOrderValue: 96300, avgCycleDays: 14 },
-    c11: { lastOrderAt: "2026-08-20", lastOrderValue: 18900, avgCycleDays: 5 },
+    c01: { avgCycleDays: 7, orders: [
+      { at: "2026-08-19", value: 48200 }, { at: "2026-08-12", value: 44100 },
+      { at: "2026-08-05", value: 51600 }, { at: "2026-07-29", value: 46800 },
+    ] },
+    c02: { avgCycleDays: 10, orders: [
+      { at: "2026-08-03", value: 12400 }, { at: "2026-07-24", value: 15900 },
+      { at: "2026-07-13", value: 11200 },
+    ] },
+    c03: { avgCycleDays: 14, orders: [
+      { at: "2026-07-20", value: 31500 }, { at: "2026-07-06", value: 29800 },
+      { at: "2026-06-21", value: 33400 },
+    ] },
+    c04: { avgCycleDays: 7, orders: [
+      { at: "2026-08-17", value: 27800 }, { at: "2026-08-10", value: 26400 },
+      { at: "2026-08-03", value: 29100 },
+    ] },
+    c05: { avgCycleDays: 14, orders: [
+      { at: "2026-08-15", value: 96300 }, { at: "2026-08-01", value: 88700 },
+      { at: "2026-07-18", value: 91500 },
+    ] },
+    c11: { avgCycleDays: 5, orders: [
+      { at: "2026-08-20", value: 18900 }, { at: "2026-08-15", value: 17600 },
+      { at: "2026-08-10", value: 19400 }, { at: "2026-08-05", value: 16800 },
+    ] },
   };
 
   /* ---- Per-customer offers, backing the Offers drawer -------------------
