@@ -1589,21 +1589,24 @@
   /* ================================================================= VIEW: product (one product's observation) */
 
   // The most important interaction in the feature. Optimised for
-  // count → condition → next, with everything else out of the way until an
-  // exception makes it relevant.
+  // count → condition → next, with every other field kept off the screen
+  // until something the rep entered makes it relevant. A healthy product is
+  // two taps; only an exception costs more than that.
   function renderProduct() {
     const customer = loadCustomer(CURRENT.params.customerId);
     const p = productById(CURRENT.params.productId);
     if (!customer || !DRAFT || !p) { go("customers", {}, true); return; }
 
-    const line = ensureDraftLine(p);
-    const total = line.physical == null ? "" : line.physical;
+    const hasShelf = locationHasShelf(customer, DRAFT.locationId);
+    const line = ensureDraftLine(p, hasShelf);
     const cb = line.conditionBreakdown;
+    const total = line.physical == null ? "" : line.physical;
     const counted = sumOf(cb);
     const totalNum = total === "" ? 0 : Number(total);
     const diff = totalNum - counted;
     const reconciled = total !== "" && diff === 0;
     const v = total === "" ? null : totalNum - p.systemStock;
+    const blockers = saveBlockers(line, hasShelf);
 
     frame(`
       <div class="pd-head">
@@ -1623,6 +1626,7 @@
         <span class="lbl">Total found</span>
         ${stepperHTML("total", total, "big")}
       </div>
+      <button type="button" class="pd-notfound" id="pdNotFound">Can't find this product</button>
 
       <div class="sec-label">Stock condition</div>
       <div class="pd-conditions">
@@ -1641,12 +1645,113 @@
             : `<span><b>${counted}</b> of <b>${totalNum}</b> accounted for — ${diff > 0 ? `${diff} still to classify` : `${-diff} more than the total`}.</span>
                <button type="button" id="pdBalance">${diff > 0 ? "Rest is good stock" : "Set total to " + counted}</button>`}
       </div>
+
+      ${total === "" ? "" : exceptionsHTML(line, p, hasShelf)}
+
+      ${blockers.length ? `<div class="pd-blockers">${blockers.map((b) => `<div>${esc(b)}</div>`).join("")}</div>` : ""}
     `, { foot: `<div class="sah-foot"><div class="inner">
         <button class="btn-wide ghost" id="pdSkip">Skip</button>
-        <button class="btn-wide primary" id="pdSave" ${reconciled ? "" : "disabled"}>Save &amp; Next</button>
+        <button class="btn-wide primary" id="pdSave" ${blockers.length ? "disabled" : ""}>Save &amp; Next</button>
       </div></div>` });
 
-    wireProduct(customer, p, line);
+    wireProduct(customer, p, line, hasShelf);
+  }
+
+  /* -------- progressive disclosure: only what the count made relevant ----- */
+
+  function exceptionsHTML(line, p, hasShelf) {
+    const cb = line.conditionBreakdown;
+    const parts = [];
+
+    if (cb.nearExpiry > 0) {
+      const e = expiryEntry(line, "nearExpiry");
+      parts.push(`<div class="pd-block warn">
+        <div class="hd">⏰ Near-expiry details <span>${cb.nearExpiry} ${esc(p.unit)}</span></div>
+        <div class="pd-fields">
+          <label>Expiry date<input type="date" data-exp="nearExpiry" data-k="date" value="${esc(e.date || "")}"></label>
+          <label>Batch <small>optional</small><input type="text" data-exp="nearExpiry" data-k="batch" value="${esc(e.batch || "")}" placeholder="e.g. PG-2609-A"></label>
+        </div>
+      </div>`);
+    }
+
+    if (cb.expired > 0) {
+      const e = expiryEntry(line, "expired");
+      parts.push(`<div class="pd-block danger">
+        <div class="hd">⏳ Expired stock <span>${cb.expired} ${esc(p.unit)}</span></div>
+        <div class="pd-fields">
+          <label>Expiry date<input type="date" data-exp="expired" data-k="date" value="${esc(e.date || "")}"></label>
+          <label>Batch <small>optional</small><input type="text" data-exp="expired" data-k="batch" value="${esc(e.batch || "")}" placeholder="e.g. AT-0814"></label>
+        </div>
+        <div class="pd-sub">What should happen to it?</div>
+        <div class="pd-opts">${DISPOSITIONS.map((d) => `<button type="button" class="pd-opt ${line.disposition === d.k ? "on" : ""}" data-disposition="${d.k}">${esc(d.label)}</button>`).join("")}</div>
+      </div>`);
+    }
+
+    if (cb.damaged > 0) {
+      parts.push(`<div class="pd-block danger">
+        <div class="hd">⚠️ Damaged stock <span>${cb.damaged} ${esc(p.unit)}</span></div>
+        <div class="pd-sub">What kind of damage?</div>
+        <div class="pd-opts">${DAMAGE_TYPES.map((d) => `<button type="button" class="pd-opt ${line.damageType === d.k ? "on" : ""}" data-damage="${d.k}">${esc(d.label)}</button>`).join("")}</div>
+      </div>`);
+    }
+
+    // Where the stock physically was. One place is the normal case and costs
+    // nothing; splitting it is what tells "the shelf is empty" apart from
+    // "the shelf is empty but there are twelve in the back".
+    const active = STORAGE_KEYS.filter((k) => (line.storageBreakdown[k.k] || 0) > 0);
+    const split = active.length > 1;
+    parts.push(`<div class="pd-block">
+      <div class="hd">Where is this stock?</div>
+      <div class="pd-opts">${STORAGE_KEYS.filter((k) => hasShelf || k.k !== "shelf").map((k) => `
+        <button type="button" class="pd-opt ${(line.storageBreakdown[k.k] || 0) > 0 ? "on" : ""}" data-storage="${k.k}">${k.icon} ${esc(k.label)}</button>`).join("")}</div>
+      ${split ? `<div class="pd-splits">${active.map((k) => `
+        <div class="pd-split"><span class="lbl">${esc(k.label)}</span>${stepperHTML("storage:" + k.k, line.storageBreakdown[k.k] || 0)}</div>`).join("")}</div>` : ""}
+    </div>`);
+
+    // Shelf questions only where there is a shelf — a warehouse audit must
+    // not be asked to rate facings it doesn't have.
+    if (hasShelf) {
+      parts.push(`<div class="pd-block">
+        <div class="hd">Shelf availability</div>
+        <div class="pd-opts">${SHELF_AVAILABILITY.map((a) => `<button type="button" class="pd-opt ${line.shelfAvailability === a.k ? "on" : ""}" data-shelf="${a.k}">${esc(a.label)}</button>`).join("")}</div>
+        ${line.shelfAvailability && line.shelfAvailability !== "not_on_shelf"
+          ? `<div class="pd-split"><span class="lbl">Facings <small>optional</small></span>${stepperHTML("facings", line.facings == null ? 0 : line.facings)}</div>`
+          : ""}
+      </div>`);
+    }
+
+    // Evidence belongs to the observation, not to every SKU. It's offered
+    // always and demanded only where the business rule needs the proof.
+    const needsProof = cb.damaged > 0 || cb.expired > 0;
+    parts.push(`<div class="pd-block">
+      <div class="hd">Evidence ${needsProof ? `<span class="req">required</span>` : `<span>optional</span>`}</div>
+      ${line.evidence.length ? `<div class="pd-evidence">${line.evidence.map((ev) => `
+        <span class="ev-chip">📷 ${esc(ev.label)}<button type="button" data-ev-remove="${esc(ev.id)}">×</button></span>`).join("")}</div>` : ""}
+      <button type="button" class="pd-photo" id="pdPhoto">📷 Take Photo</button>
+    </div>`);
+
+    const hasNote = (line.notes || "").length > 0;
+    parts.push(`<div class="pd-block">
+      <div class="hd">Note <span>optional</span></div>
+      <textarea id="pdNote" placeholder="e.g. Customer moved 10 units to the back shelf">${esc(line.notes || "")}</textarea>
+    </div>`);
+
+    return parts.join("");
+  }
+
+  // Everything standing between this line and Save. One list, so the rep is
+  // never left guessing why the button is greyed out.
+  function saveBlockers(line, hasShelf) {
+    const cb = line.conditionBreakdown;
+    const out = [];
+    if (line.physical == null) { out.push("Enter the total found."); return out; }
+    if (sumOf(cb) !== line.physical) out.push("The condition split has to add up to the total found.");
+    if (cb.expired > 0 && !line.disposition) out.push("Say what should happen to the expired stock.");
+    if (cb.damaged > 0 && !line.damageType) out.push("Pick a damage type.");
+    if ((cb.damaged > 0 || cb.expired > 0) && !line.evidence.length) out.push("Add a photo of the damaged or expired stock.");
+    if (sumOf(line.storageBreakdown) !== line.physical) out.push("Split the stock across where you found it.");
+    if (hasShelf && !line.shelfAvailability) out.push("Rate what's on the shelf.");
+    return out;
   }
 
   function stepperHTML(key, value, cls) {
@@ -1657,36 +1762,73 @@
     </span>`;
   }
 
-  function ensureDraftLine(p) {
-    if (!DRAFT.lines[p.id]) DRAFT.lines[p.id] = blankLine(p.id, p.systemStock);
+  function expiryEntry(line, bucket) {
+    let e = line.expiryDetails.find((x) => x.bucket === bucket);
+    if (!e) { e = { bucket, date: "", batch: "", qty: 0 }; line.expiryDetails.push(e); }
+    return e;
+  }
+
+  function ensureDraftLine(p, hasShelf) {
+    if (!DRAFT.lines[p.id]) {
+      const line = blankLine(p.id, p.systemStock);
+      // Sensible defaults for the ordinary case, so a healthy product needs
+      // no answers beyond the count itself.
+      if (hasShelf) line.shelfAvailability = "available";
+      DRAFT.lines[p.id] = line;
+    }
     return DRAFT.lines[p.id];
   }
 
-  function wireProduct(customer, p, line) {
+  function wireProduct(customer, p, line, hasShelf) {
     const cb = line.conditionBreakdown;
+    const sb = line.storageBreakdown;
     const num = (v) => Math.max(0, Number(v) || 0);
+    const primaryStore = hasShelf ? "shelf" : "warehouse";
 
-    const readField = (key) => (key === "total" ? (line.physical == null ? 0 : line.physical) : cb[key] || 0);
-    // Good stock is the remainder, and stays that way on its own. Count the
-    // total, then declare only the exceptions — finding 2 expired out of 12
-    // means 10 are good, not that 2 more appeared. That keeps the normal
-    // product at two taps and the reconciliation true by construction.
-    //
-    // Good is still directly editable, for a rep who counted the piles
-    // separately rather than counting a total first. Doing that is the one
-    // way the numbers can disagree, and the strip below says so.
-    const others = () => (cb.nearExpiry || 0) + (cb.expired || 0) + (cb.damaged || 0);
-    const writeField = (key, val) => {
-      if (key === "total") {
-        line.physical = val;
-        cb.good = Math.max(0, val - others());
-      } else if (key === "good") {
-        cb.good = val;
-      } else {
-        cb[key] = val;
-        if (line.physical != null) cb.good = Math.max(0, line.physical - others());
-      }
+    // Re-rendering on every keystroke is what keeps every derived number
+    // honest, but it also blows away the caret. Put it back where it was.
+    const focusKey = (() => {
+      const el = document.activeElement;
+      const st = el && el.closest && el.closest(".pd-stepper");
+      return st ? st.dataset.field : null;
+    })();
+    const rerender = () => {
       renderProduct();
+      if (!focusKey) return;
+      const el = PAGE.querySelector(`.pd-stepper[data-field="${focusKey}"] input`);
+      if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+    };
+
+    const others = () => (cb.nearExpiry || 0) + (cb.expired || 0) + (cb.damaged || 0);
+    const storeOthers = () => STORAGE_KEYS.reduce((n, k) => n + (k.k === primaryStore ? 0 : sb[k.k] || 0), 0);
+    // Good stock, and stock in its usual place, are both remainders that keep
+    // themselves right. Count the total, then declare only the exceptions —
+    // finding 2 expired out of 12 means 10 are good, not that 2 more
+    // appeared. Both stay directly editable for a rep who counted the piles
+    // separately; that's the one way the numbers can disagree, and the strip
+    // under the conditions says so when they do.
+    const rebalance = () => {
+      if (line.physical == null) return;
+      cb.good = Math.max(0, line.physical - others());
+      sb[primaryStore] = Math.max(0, line.physical - storeOthers());
+    };
+
+    const readField = (key) => {
+      if (key === "total") return line.physical == null ? 0 : line.physical;
+      if (key === "facings") return line.facings == null ? 0 : line.facings;
+      if (key.indexOf("storage:") === 0) return sb[key.slice(8)] || 0;
+      return cb[key] || 0;
+    };
+    const writeField = (key, val) => {
+      if (key === "total") { line.physical = val; rebalance(); }
+      else if (key === "facings") line.facings = val;
+      else if (key === "good") cb.good = val;
+      else if (key.indexOf("storage:") === 0) {
+        const k = key.slice(8);
+        sb[k] = val;
+        if (k !== primaryStore) sb[primaryStore] = Math.max(0, (line.physical || 0) - storeOthers());
+      } else { cb[key] = val; rebalance(); }
+      rerender();
     };
 
     PAGE.querySelectorAll(".pd-stepper").forEach((st) => {
@@ -1701,17 +1843,111 @@
       const diff = (line.physical || 0) - sumOf(cb);
       if (diff > 0) cb.good = (cb.good || 0) + diff;
       else line.physical = sumOf(cb);
-      renderProduct();
+      rebalance();
+      rerender();
     };
 
+    PAGE.querySelectorAll("[data-disposition]").forEach((b) => (b.onclick = () => { line.disposition = line.disposition === b.dataset.disposition ? null : b.dataset.disposition; rerender(); }));
+    PAGE.querySelectorAll("[data-damage]").forEach((b) => (b.onclick = () => { line.damageType = line.damageType === b.dataset.damage ? null : b.dataset.damage; rerender(); }));
+    PAGE.querySelectorAll("[data-shelf]").forEach((b) => (b.onclick = () => { line.shelfAvailability = b.dataset.shelf; rerender(); }));
+
+    PAGE.querySelectorAll("[data-storage]").forEach((b) => (b.onclick = () => {
+      const k = b.dataset.storage;
+      if ((sb[k] || 0) > 0) {
+        // Turning a place off returns its stock to the usual one rather than
+        // quietly losing it from the total.
+        sb[k] = 0;
+        if (k === primaryStore) { const other = STORAGE_KEYS.find((x) => (sb[x.k] || 0) > 0); if (!other) sb[primaryStore] = line.physical || 0; }
+      } else if (k === primaryStore) {
+        sb[k] = Math.max(0, (line.physical || 0) - storeOthers());
+      } else {
+        sb[k] = 1;
+      }
+      sb[primaryStore] = Math.max(0, (line.physical || 0) - storeOthers());
+      rerender();
+    }));
+
+    // Text fields update the model without re-rendering — a re-render per
+    // keystroke would take the caret with it.
+    PAGE.querySelectorAll("[data-exp]").forEach((el) => (el.oninput = () => {
+      const e = expiryEntry(line, el.dataset.exp);
+      e[el.dataset.k] = el.value;
+      e.qty = cb[el.dataset.exp] || 0;
+    }));
+    const note = $("#pdNote", PAGE);
+    if (note) note.oninput = () => (line.notes = note.value);
+
+    // Simulated — there's no camera here. What matters for the prototype is
+    // that the evidence attaches to THIS observation with a type that says
+    // what it was proving.
+    const photo = $("#pdPhoto", PAGE);
+    if (photo) photo.onclick = () => {
+      const type = cb.damaged > 0 ? "damage" : cb.expired > 0 || cb.nearExpiry > 0 ? "expiry" : lineVariance(line) !== 0 ? "variance" : "shelf";
+      const label = { damage: "Damaged stock", expiry: "Date code", variance: "Stock on hand", shelf: "Shelf" }[type];
+      line.evidence.push({ id: "ev-" + Date.now().toString(36), type, label: label + " — " + p.name, note: "", capturedAt: new Date().toISOString(), capturedBy: AUDITOR.name });
+      toast("Photo attached.");
+      rerender();
+    };
+    PAGE.querySelectorAll("[data-ev-remove]").forEach((b) => (b.onclick = () => {
+      line.evidence = line.evidence.filter((e) => e.id !== b.dataset.evRemove);
+      rerender();
+    }));
+
+    $("#pdNotFound", PAGE).onclick = () => notFoundSheet(customer, p, line);
     $("#pdBack", PAGE).onclick = back;
     $("#pdSkip", PAGE).onclick = () => advance(customer, p, true);
     $("#pdSave", PAGE).onclick = () => {
       line.status = "audited";
+      line.notFoundReason = null;
+      // Drop expiry rows for buckets that ended up empty.
+      line.expiryDetails = line.expiryDetails.filter((e) => (cb[e.bucket] || 0) > 0).map((e) => Object.assign(e, { qty: cb[e.bucket] }));
+      if (!cb.expired) line.disposition = null;
+      if (!cb.damaged) line.damageType = null;
       const parts = CONDITION_KEYS.filter((c) => cb[c.k] > 0).map((c) => `${cb[c.k]} ${c.label.toLowerCase()}`);
       toast(`${p.name}: ${line.physical} found${parts.length ? " — " + parts.join(", ") : ""}.`);
       advance(customer, p, false);
     };
+  }
+
+  // "Couldn't find it" is not "there are zero" — one is an unverified line,
+  // the other a confirmed stock-out — so it records a reason and no count.
+  function notFoundSheet(customer, p, line) {
+    let picked = line.notFoundReason || null;
+    const s = sheet({
+      eyebrow: p.name,
+      title: "Can't find this product?",
+      sub: "This records that the stock couldn't be verified — not that there is none.",
+      body: `<div class="pd-opts sheet-opts">${NOT_FOUND_REASONS.map((r) => `<button type="button" class="pd-opt" data-nf="${r.k}">${esc(r.label)}</button>`).join("")}</div>`,
+      actions: [
+        { label: "Cancel", cls: "ghost" },
+        {
+          label: "Mark as not found",
+          cls: "primary",
+          onClick: () => {
+            if (!picked) { toast("Pick a reason first.", "info"); return false; }
+            line.status = "not_found";
+            line.notFoundReason = picked;
+            line.physical = null;
+            line.conditionBreakdown = emptyCondition();
+            line.storageBreakdown = emptyStorage();
+            // Nobody verified this stock, so it says nothing about the shelf
+            // either — leaving the default "available" on it would quietly
+            // inflate shelf health with an observation never made.
+            line.shelfAvailability = null;
+            line.facings = null;
+            line.expiryDetails = [];
+            line.disposition = null;
+            line.damageType = null;
+            toast(`${p.name} marked as not found.`);
+            advance(customer, p, false);
+          },
+        },
+      ],
+    });
+    s.el.querySelectorAll("[data-nf]").forEach((b) => (b.onclick = () => {
+      picked = b.dataset.nf;
+      s.el.querySelectorAll("[data-nf]").forEach((x) => x.classList.toggle("on", x === b));
+    }));
   }
 
   // Straight on to the next thing that still needs checking — the rep should
@@ -1768,9 +2004,10 @@
     return { score, cls, label };
   }
   function shelfHealthPct(a) {
-    if (!a.lines.length) return 100;
-    const rated = a.lines.filter((l) => l.shelfAvailability);
-    if (!rated.length) return 100;
+    const rated = a.lines.filter((l) => l.status === "audited" && l.shelfAvailability);
+    // null, not 100: a warehouse visit rates no shelves, and reporting a
+    // perfect score for a question nobody asked is worse than saying nothing.
+    if (!rated.length) return null;
     const pts = rated.reduce((s, l) => s + (l.shelfAvailability === "available" ? 1 : l.shelfAvailability === "partial" ? 0.5 : 0), 0);
     return Math.round((pts / rated.length) * 100);
   }
@@ -1814,7 +2051,7 @@
         <div class="summary-tile ${oosCount ? "flag" : ""}"><div class="n">${oosCount}</div><div class="l">Stock-out risk</div></div>
         <div class="summary-tile ${overCount ? "flag" : ""}"><div class="n">${overCount}</div><div class="l">Overstock</div></div>
         <div class="summary-tile ${expiryCount ? "flag" : ""}"><div class="n">${expiryCount}</div><div class="l">Expiry risk</div></div>
-        <div class="summary-tile"><div class="n">${shelfPct}%</div><div class="l">Shelf availability</div></div>
+        <div class="summary-tile"><div class="n">${shelfPct == null ? "—" : shelfPct + "%"}</div><div class="l">Shelf availability</div></div>
       </div>
 
       <div class="sec-label">Recommended Actions</div>

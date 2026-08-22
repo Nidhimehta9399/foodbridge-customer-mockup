@@ -438,6 +438,51 @@
 .pd-reconcile.bad b { color: var(--amber-tx); }
 .pd-reconcile button { margin-left: auto; border: none; background: rgba(255,255,255,.75); border-radius: 8px; padding: 6px 11px; font-size: 12px; font-weight: 700; color: inherit; white-space: nowrap; }
 
+/* Not found is a deliberate, quiet path — it must be reachable without
+   competing with the count itself. */
+.pd-notfound { display: block; width: 100%; background: none; border: none; padding: 2px 0 16px; font-size: 12.5px; font-weight: 700; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+.pd-notfound:hover { color: var(--red); }
+
+/* Progressive disclosure: each of these appears only because something the
+   rep entered made it relevant. */
+.pd-block { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 13px 14px; margin-top: 12px; }
+.pd-block.warn { border-color: #fcd34d; background: #fffbeb; }
+.pd-block.danger { border-color: #fca5a5; background: #fef6f6; }
+.pd-block .hd { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; font-weight: 800; color: var(--ink); margin-bottom: 10px; }
+.pd-block .hd span { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--muted-2); text-transform: uppercase; letter-spacing: .03em; }
+.pd-block .hd span.req { color: var(--red); font-weight: 800; }
+.pd-block .pd-sub { font-size: 11.5px; color: var(--muted); margin: 12px 0 8px; font-weight: 600; }
+.pd-block textarea { width: 100%; min-height: 58px; resize: vertical; border: 1px solid var(--line); border-radius: 10px; padding: 10px 11px; font: inherit; font-size: 13px; outline: none; background: #fff; color: var(--ink); }
+.pd-block textarea:focus { border-color: var(--teal); }
+
+.pd-fields { display: flex; gap: 10px; flex-wrap: wrap; }
+.pd-fields label { flex: 1 1 130px; min-width: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--muted-2); }
+.pd-fields label small { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.pd-fields input { display: block; width: 100%; margin-top: 5px; height: 38px; border: 1px solid var(--line); border-radius: 9px; padding: 0 10px; font: inherit; font-size: 13px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--ink); background: #fff; outline: none; }
+.pd-fields input:focus { border-color: var(--teal); }
+
+.pd-opts { display: flex; flex-wrap: wrap; gap: 7px; }
+.pd-opt { border: 1.5px solid var(--line); background: #fff; color: var(--muted); border-radius: 999px; padding: 7px 13px; font-size: 12px; font-weight: 700; }
+.pd-opt.on { border-color: var(--teal); background: var(--teal-l); color: var(--teal); }
+.sheet-opts { margin-top: 16px; }
+
+.pd-splits { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.pd-split { display: flex; align-items: center; gap: 12px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.pd-split .lbl { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.pd-split .lbl small { font-weight: 500; color: var(--muted-2); }
+
+.pd-evidence { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+.ev-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--slate-100); border-radius: 999px; padding: 6px 8px 6px 11px; font-size: 11.5px; font-weight: 600; color: var(--ink); }
+.ev-chip button { border: none; background: #fff; border-radius: 50%; width: 18px; height: 18px; line-height: 1; font-size: 13px; color: var(--muted); }
+.pd-photo { width: 100%; border: 1.5px dashed var(--line); background: none; border-radius: 11px; padding: 11px; font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.pd-photo:hover { border-color: var(--teal); color: var(--teal); }
+
+/* One list of everything standing between this line and Save, so a greyed
+   out button is never a mystery. */
+.pd-blockers { margin-top: 14px; border-radius: 12px; background: var(--amber-bg); color: var(--amber-tx); padding: 11px 14px; font-size: 12.5px; font-weight: 600; }
+.pd-blockers div { padding: 2px 0; }
+.pd-blockers div::before { content: "• "; }
+
 /* ── Complete Audit summary ──────────────────────────────────────────────── */
 .score-card { display: flex; align-items: center; gap: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px; margin-bottom: 18px; }
 .score-ring {
