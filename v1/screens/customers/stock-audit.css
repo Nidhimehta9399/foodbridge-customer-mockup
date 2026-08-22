@@ -57,13 +57,7 @@
   gap: 4px; background: none; border: none; font-size: 11px; font-weight: 600;
   color: var(--muted); padding: 4px 0; line-height: 1;
 }
-.nav-btn .ic-wrap { position: relative; display: inline-block; }
 .nav-btn .ic { font-size: 20px; line-height: 1; }
-.nav-btn .badge {
-  position: absolute; top: -6px; right: -9px; min-width: 15px; height: 15px;
-  border-radius: 999px; background: var(--red); color: #fff;
-  font-size: 9px; font-weight: 800; display: grid; place-items: center; padding: 0 3px;
-}
 .nav-btn.active { color: var(--teal); font-weight: 800; }
 .nav-btn:active { opacity: .6; }
 .nav-btn.fab-slot { position: relative; }

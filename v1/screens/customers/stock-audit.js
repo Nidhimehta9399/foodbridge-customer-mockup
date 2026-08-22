@@ -351,23 +351,6 @@
     return all.filter((c) => matchesFilter(c._id, filter)).length;
   }
 
-  function computeKPIs(all) {
-    let visitsPlanned = 0, attentionCount = 0, auditsDue = 0, completedThisWeek = 0;
-    const weekAgo = now().getTime() - 7 * DAY;
-    for (const c of all) {
-      const vb = visitBucketFor(c._id);
-      if (vb === "due") visitsPlanned++;
-      if (vb === "overdue") auditsDue++;
-      if (reasonsFor(c._id).length) attentionCount++;
-    }
-    Object.keys(AuditStore.state).forEach((cid) => {
-      AuditStore.list(cid).forEach((a) => {
-        if (new Date(a.at).getTime() >= weekAgo) completedThisWeek++;
-      });
-    });
-    return { visitsPlanned, completedThisWeek, attentionCount, auditsDue };
-  }
-
   /* ------------------------------------------------------------------ router */
 
   let PAGE = null;
@@ -411,25 +394,20 @@
   function navActiveKey(view) {
     if (view === "customers" || view === "customer-detail") return "customers";
     if (view === "audits") return "audits";
-    if (view === "needs-attention") return "attention";
     return null;
   }
 
-  // Customers / Audits / + New Audit / Attention (badged) / More — the set
-  // the product owner's reference design asked for. "More" is a real
-  // overflow, not a decoration: right now the only thing behind it is Back,
-  // since that's the only cross-view action this feature has that doesn't
-  // already own a tab of its own.
+  // Customers / Audits History / + New Audit — three, per the product
+  // owner's call. Needs Attention and Back are still real, reachable views
+  // (the landing page's own Needs Attention block, and each view's own back
+  // affordance), just not permanent nav real estate.
   function navHTML(view) {
     const active = navActiveKey(view);
-    const attentionCount = computeKPIs(loadCustomers()).attentionCount;
     return `
       <div class="sah-nav">
         <button class="nav-btn ${active === "customers" ? "active" : ""}" data-nav="customers"><span class="ic">🏬</span>Customers</button>
-        <button class="nav-btn ${active === "audits" ? "active" : ""}" data-nav="audits"><span class="ic">🗂️</span>Audits</button>
+        <button class="nav-btn ${active === "audits" ? "active" : ""}" data-nav="audits"><span class="ic">🗂️</span>Audit History</button>
         <button class="nav-btn fab-slot" data-nav="create"><span class="nav-fab">+</span><span class="lbl">New Audit</span></button>
-        <button class="nav-btn ${active === "attention" ? "active" : ""}" data-nav="attention"><span class="ic-wrap"><span class="ic">🔔</span>${attentionCount ? `<span class="badge">${attentionCount > 99 ? "99+" : attentionCount}</span>` : ""}</span>Attention</button>
-        <button class="nav-btn" data-nav="more"><span class="ic">•••</span>More</button>
       </div>`;
   }
   function wireNav() {
@@ -439,20 +417,7 @@
         if (k === "customers") go("customers", {}, true);
         else if (k === "audits") go("audits", {}, true);
         else if (k === "create") { DRAFT = null; go("create-customer", {}); }
-        else if (k === "attention") go("needs-attention", { filter: "all" }, true);
-        else if (k === "more") openMoreSheet();
       };
-    });
-  }
-
-  function openMoreSheet() {
-    const canBack = STACK.length > 0;
-    sheet({
-      eyebrow: "More",
-      title: "Options",
-      actions: canBack
-        ? [{ label: "← Back", cls: "primary", onClick: back }, { label: "Close", cls: "ghost" }]
-        : [{ label: "Nothing to go back to — you're at the start.", cls: "ghost" }],
     });
   }
 
