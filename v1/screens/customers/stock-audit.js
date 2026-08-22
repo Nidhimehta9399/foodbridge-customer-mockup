@@ -454,8 +454,7 @@
 
   /* ================================================================= VIEW: customers (landing) */
 
-  let CUST_STATE = { q: "", filter: "all", sort: "health", showAll: false };
-  const CUSTOMER_LIST_PREVIEW = 5;
+  let CUST_STATE = { q: "", filter: "all", sort: "health" };
 
   // Deterministic, purely-decorative avatar colour/icon per customer — the
   // reference design varies these for scannability, not to encode meaning
@@ -487,12 +486,11 @@
   }
 
   function renderCustomers() {
-    if (CURRENT.params.filter) { CUST_STATE.filter = CURRENT.params.filter; CUST_STATE.showAll = false; CURRENT.params = {}; }
+    if (CURRENT.params.filter) { CUST_STATE.filter = CURRENT.params.filter; CURRENT.params = {}; }
     const all = loadCustomers();
     const q = CUST_STATE.q.trim().toLowerCase();
     let rows = q ? all.filter((c) => [nameOf(c), c.phone, c.email].some((v) => String(v || "").toLowerCase().includes(q))) : all;
     rows = sortCustomers(rows.filter((c) => matchesFilter(c._id, CUST_STATE.filter)), CUST_STATE.sort);
-    const visibleRows = CUST_STATE.showAll ? rows : rows.slice(0, CUSTOMER_LIST_PREVIEW);
 
     const stockoutCount = filterCount(all, "stockout");
     const needsVisitCount = filterCount(all, "needs_visit");
@@ -543,17 +541,14 @@
         </label>
       </div>
       ${rows.length
-        ? `<div class="customer-list">${visibleRows.map((c, i) => customerCardHTML(c, i)).join("")}</div>
-           ${rows.length > visibleRows.length ? `<button type="button" class="view-all-row" id="viewAllCust">View all customers (${rows.length}) <span class="chev">›</span></button>` : ""}`
+        ? `<div class="customer-list">${rows.map((c, i) => customerCardHTML(c, i)).join("")}</div>`
         : `<div class="sah-empty"><div class="big">🔍</div><p>No customers match this view.</p></div>`}
     `);
 
-    wireSearchInput("custQ", (v) => { CUST_STATE.q = v; CUST_STATE.showAll = false; renderCustomers(); });
+    wireSearchInput("custQ", (v) => { CUST_STATE.q = v; renderCustomers(); });
     $("#custSort", PAGE).onchange = (e) => { CUST_STATE.sort = e.target.value; renderCustomers(); };
-    const viewAll = $("#viewAllCust", PAGE);
-    if (viewAll) viewAll.onclick = () => { CUST_STATE.showAll = true; renderCustomers(); };
-    PAGE.querySelectorAll("[data-f]").forEach((b) => (b.onclick = () => { CUST_STATE.filter = b.dataset.f; CUST_STATE.showAll = false; renderCustomers(); }));
-    PAGE.querySelectorAll("[data-issue]").forEach((b) => (b.onclick = () => { CUST_STATE.filter = b.dataset.issue; CUST_STATE.showAll = false; renderCustomers(); }));
+    PAGE.querySelectorAll("[data-f]").forEach((b) => (b.onclick = () => { CUST_STATE.filter = b.dataset.f; renderCustomers(); }));
+    PAGE.querySelectorAll("[data-issue]").forEach((b) => (b.onclick = () => { CUST_STATE.filter = b.dataset.issue; renderCustomers(); }));
     PAGE.querySelectorAll("[data-goto]").forEach((el) => {
       el.onclick = (e) => {
         if (e.target.closest("[data-start]")) return;

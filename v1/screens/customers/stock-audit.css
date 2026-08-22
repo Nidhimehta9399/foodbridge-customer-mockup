@@ -221,13 +221,6 @@
 .hscore .lbl.fair { color: var(--orange); }
 .hscore .lbl.poor { color: var(--red); }
 
-.view-all-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 16px; background: var(--card); border: 1px solid var(--line);
-  border-radius: 14px; font-size: 13px; font-weight: 700; color: var(--ink); width: 100%;
-}
-.view-all-row .chev { color: var(--muted-2); font-weight: 400; }
-
 /* ── Audits view (flat visit history across every customer) ─────────────── */
 .audit-row-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; cursor: pointer; }
 .audit-row-card .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
